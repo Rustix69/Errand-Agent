@@ -22,7 +22,7 @@ STATUS_BY_KIND: dict[str, Status] = {
     "failed": "TOOL_FAILURE", "unknown": "TOOL_FAILURE", "limit_reached": "LIMIT_REACHED",
     # graph exits
     "declined": "DECLINED", "expired": "NEEDS_INPUT", "proposal_ready": "NEEDS_INPUT",
-    "ask": "NEEDS_INPUT", "answer": "DONE", "limit": "LIMIT_REACHED",
+    "ask": "NEEDS_INPUT", "answer": "DONE", "limit": "LIMIT_REACHED", "no_pending_approval": "DONE",
     "slot_unavailable": "NEEDS_INPUT", "booking_not_found": "NEEDS_INPUT",
     "hold_failed": "TOOL_FAILURE", "model_error": "TOOL_FAILURE", "unexpected": "TOOL_FAILURE",
     # memory commands (handled by code; the model is not involved)
@@ -45,6 +45,7 @@ class Exit:
     missing: list[str] = field(default_factory=list)
     memory: dict[str, Any] | None = None  # data for memory_* kinds
     notes: list[str] = field(default_factory=list)  # appended to the message (memories saved from this turn)
+    pending: bool = False  # a proposal was awaiting approval when the model wrote `text` (answer / ask only)
 
 
 @dataclass
@@ -78,6 +79,7 @@ _LIMITS = {"model_turns": "model-turn", "tool_calls": "tool-call", "wall_clock":
 # is booked", "once you approve it'll be booked", "nothing is booked yet") and nouns/adjectives ("booked slots") do not.
 _UNVERIFIED = " (Nothing was booked, cancelled or changed in this step. Only a verified result counts.)"
 _DONE = r"(?:booked|cancell?ed|rescheduled)"
+_DONE_PASSIVE = r"(?:booked|cancell?ed|rescheduled|moved)"  # "moved" only in passive / "and verified" forms: "I moved on" is not a claim
 _ADV = r"(?:(?:now|just|already|successfully|officially|gone ahead and)\s+)*"
 _CLAIM_PATTERNS = (
     # I booked / I've cancelled / we have rescheduled ...
@@ -87,14 +89,51 @@ _CLAIM_PATTERNS = (
                r"|the\s+(?:booking|appointment|reservation)\b)", re.I),
     # your booking is confirmed / your appointment has been rescheduled
     re.compile(rf"\b(?:your|the)\s+(?:\w+\s+){{0,3}}?(?:booking|appointment|reservation|visit)\s+"
-               rf"(?:is|has\s+been|is\s+now)\s+{_ADV}(?:{_DONE}|confirmed)\b", re.I),
-    # it's booked / that has been confirmed
-    re.compile(rf"\b(?:it|that|this)(?:['’]s|\s+is|\s+has\s+been)\s+{_ADV}(?:all\s+)?(?:{_DONE}|confirmed)\b", re.I),
+               rf"(?:is|has\s+been|is\s+now)\s+{_ADV}(?:{_DONE_PASSIVE}|confirmed)\b", re.I),
+    # it's booked / that has been confirmed / it has been moved
+    re.compile(rf"\b(?:it|that|this)(?:['’]s|\s+is|\s+has\s+been)\s+{_ADV}(?:all\s+)?(?:{_DONE_PASSIVE}|confirmed)\b", re.I),
+    # your AC servicing has been moved / your plumber is now booked (the finished form: "is now" or "has been", never a bare "is")
+    re.compile(rf"\byour\s+(?:[\w'’.-]+\s+){{0,6}}?(?:has\s+been|is\s+now)\s+{_ADV}(?:{_DONE_PASSIVE}|confirmed)\b", re.I),
+    # your AC servicing is now on 2026-11-07T11:00 / is now scheduled for Saturday
+    re.compile(r"\byour\s+(?:[\w'’.-]+\s+){0,6}?is\s+now\s+(?:on|at|scheduled\s+(?:for|on))\b", re.I),
+    # "Moved and verified: ..." / "booked and verified"
+    re.compile(rf"\b(?:{_DONE_PASSIVE}|confirmed)\s+and\s+verified\b", re.I),
+    # verified rescheduled ... / the move is verified / I've verified your booking. A provider badge ("Verified, 30-day
+    # warranty") is NOT a claim: "verified" counts only next to a completed action or the booking itself.
+    re.compile(rf"\bverified\s+(?:and\s+)?{_DONE_PASSIVE}\b", re.I),
+    re.compile(r"\b(?:booking|appointment|reschedule|move|cancellation|change)\s+(?:is|has\s+been|was)\s+(?:now\s+)?verified\b", re.I),
+    re.compile(r"\b(?:I|we)(?:['’]ve| have)?\s+verified\s+(?:the|your|that|it)\s+(?:booking|appointment|reschedule|move|"
+               r"cancellation|change|\w+\s+(?:booking|appointment))\b", re.I),
+    re.compile(r"^\W*verified\s*[:\u2014-]\s*(?:your|the|it|booking)\b", re.I),
 )
 _BARE_CLAIM = re.compile(rf"^\W*(?:(?:all\s+set|done)\W+)?(?:{_DONE}|confirmed)\W*$", re.I)  # a sentence that is just "Booked!"
 _HEDGE = re.compile(r"\b(?:before|until|once|after|if|unless|when|whenever|whether|will|would|could|can|should|might|may|"
                     r"not|never|nothing|no)\b|n['’]t\b|['’]ll\b", re.I)
 _SENTENCES = re.compile(r"(?<=[.!?])\s+|\n+")
+
+# Only the system asks for approval, and only by calling the stored proposal (`_approval_request`). If a model text reply
+# contains an approval prompt while NO proposal is pending, the wording is replaced: the user would otherwise type a code
+# that approves nothing and then believe a following (equally made-up) "done".
+_APPROVAL_PROMPT = re.compile(
+    r"(?-i:\bCONFIRM\s+[0-9A-F]{4}\b)"  # the displayed code format: 4 upper-case hex characters
+    r"|(?<!you )\b(?:reply|type|say|respond|answer|send)\s+(?:with\s+)?[\"'“‘]?yes\b"  # "once you say yes" is not a prompt
+    r"|\byes\s+to\s+(?:confirm|approve|proceed|go\s+ahead)\b", re.I)
+_FAKE_PROMPT_NOTE = "(Only the system can ask for your approval, and nothing is waiting for it right now.)"
+_SPLIT_KEEP = re.compile(r"(?<=[.!?])(\s+)|(\n+)")
+
+
+def scrub_approval_prompts(text: str) -> tuple[str, bool]:
+    """Replace every sentence that asks for approval ("reply 'yes'", "CONFIRM 7A2D") by one code-written note."""
+    parts = [p for p in _SPLIT_KEEP.split(text) if p is not None]
+    out: list[str] = []
+    changed = False
+    for part in parts:
+        if part.strip() and _APPROVAL_PROMPT.search(part):
+            out.append("" if changed else _FAKE_PROMPT_NOTE)
+            changed = True
+        else:
+            out.append(part)
+    return ("".join(out).strip() if changed else text), changed
 
 
 def claims_completed_action(text: str) -> bool:
@@ -236,10 +275,19 @@ def finalize(e: Exit) -> Final:
         msg, waiting = _approval_request(e.proposal), "approval"
     elif kind == "ask":
         msg, waiting = e.text or "What details can you share?", "input"
+        if not e.pending:
+            msg, scrubbed = scrub_approval_prompts(msg)
+            claim = "fake_approval_prompt" if scrubbed else None
     elif kind == "answer":
         msg = e.text or "Is there anything else you'd like to arrange?"
+        if not e.pending:
+            msg, scrubbed = scrub_approval_prompts(msg)
+            claim = "fake_approval_prompt" if scrubbed else None
         if claims_completed_action(msg):  # an `answer` never follows a verified outcome: a claim in it is unverified
-            msg, claim = msg + _UNVERIFIED, "unverified_claim"
+            msg, claim = msg + _UNVERIFIED, f"{claim}+unverified_claim" if claim else "unverified_claim"
+    elif kind == "no_pending_approval":
+        msg = ("Nothing is waiting for your approval right now, so that code does nothing and nothing was changed. "
+               "If you want something booked, cancelled or moved, tell me and I'll set it up for you to approve.")
     elif kind == "slot_unavailable":
         msg, waiting = "That option can't be held any more. Want me to search again?", "input"
     elif kind == "booking_not_found":

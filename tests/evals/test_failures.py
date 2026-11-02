@@ -124,6 +124,40 @@ def test_f6_reschedule_slot_conflict_then_another_slot(scenario):
     assert [x["status"] for x in a.env.store.attempts()] == ["FAILED", "CONFIRMED"]
 
 
+def test_s9_a_made_up_approval_prompt_and_a_made_up_done_change_nothing(scenario):
+    """Regression (BUGS #4): found by clicking through the web UI with the real model."""
+    fake_prompt = say("Ready to move it to 11:00. To confirm, reply 'yes' (or CONFIRM 7A2D).")
+    fake_done = say("Moved and verified: your AC servicing is now on 2026-11-07T11:00. Booking ID bk_000005.")
+
+    def move_to_10(request):
+        ac = next(b for b in tool_json(request, "list_bookings")["bookings"] if b["service"] == "ac_servicing" and b["is_upcoming"])
+        return call("propose_reschedule", booking_id=ac["booking_id"], slot="2026-11-07T10:00")
+
+    run = scenario(
+        "S9", "After a slot_conflict the model writes a made-up approval prompt, the user types its CONFIRM code, "
+              "and the model would answer 'Moved and verified'",
+        "the prompt is replaced by code, the stray CONFIRM is answered by code with NO model call, 0 new approvals or "
+        "attempts, the booking is unchanged; a made-up 'Moved and verified' reply gets the code-written note",
+        [call("list_bookings"), move_to_10, fake_prompt, fake_done], ["move my AC servicing to Saturday 10am", "yes"],
+    )
+    a = run.a
+    assert run.replies[-1].kind == "slot_conflict"
+    before = (run.facts()["approvals"], len(a.env.store.attempts()), a.env.count("reschedule"))
+    r = run.say("11:00 then")  # the model answers in text, with a made-up approval prompt and no proposal
+    assert (r.kind, r.reason) == ("answer", "fake_approval_prompt")
+    assert "CONFIRM" not in r.message and "reply 'yes'" not in r.message
+    model_calls = a.model.calls
+    r = run.say("CONFIRM 7A2D")
+    assert (r.status, r.kind, r.waiting) == ("DONE", "no_pending_approval", None)
+    assert a.model.calls == model_calls and a.of("stray_confirm")  # answered by code: the model was NOT called
+    assert (run.facts()["approvals"], len(a.env.store.attempts()), a.env.count("reschedule")) == before
+    ac = next(b for b in a.env.user_bookings() if b["provider_id"] == "ac_01" and b["status"] == "confirmed")
+    assert not ac["slot"].startswith("2026-11-07")
+    r = run.say("so is it moved?")  # the model now claims it was done: the guard adds the real status
+    assert (r.kind, r.reason) == ("answer", "unverified_claim") and "Nothing was booked" in r.message
+    assert (run.facts()["approvals"], len(a.env.store.attempts()), a.env.count("reschedule")) == before
+
+
 def test_f7_search_unavailable_through_every_retry_is_bounded_and_reported(scenario):
     def tell_user(request):
         assert tool_json(request, "search_providers")["error"] == "unavailable"  # the model SAW the failure

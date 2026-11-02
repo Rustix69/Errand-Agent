@@ -16,6 +16,7 @@ the idempotent executor, and the interrupt nodes do nothing but wait.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import asdict
 from typing import Any
 
@@ -33,6 +34,7 @@ from errand.model.base import Message
 
 _CANT_HOLD = (ErrorCode.SLOT_UNAVAILABLE, ErrorCode.PROVIDER_NOT_FOUND, ErrorCode.INVALID_ARGUMENT)
 _SUCCESS = ("confirmed", "already_done")
+_STRAY_CONFIRM = re.compile(r"^\W*confirm\s+[0-9a-f]{4}\W*$", re.I)  # the displayed code is 4 hex characters; "confirm m_12" is a memory command
 _IGNORED_PROPOSAL = json.dumps({
     "error": "proposal_ignored",
     "message": "You proposed in the same turn as read calls, before you had their results. A proposal is only accepted "
@@ -86,6 +88,11 @@ def build_graph(rt: Any) -> StateGraph:
             return {"exit": asdict(Exit("declined", proposal_id=state["decision"]["proposal_id"])), "pending": None}
         if kind == "expired":
             return {"exit": asdict(Exit("expired", proposal_id=state["decision"]["proposal_id"])), "pending": None}
+        if kind == "other" and state.get("pending") is None and _STRAY_CONFIRM.match(state["user_message"]):
+            # "CONFIRM 7A2D" with nothing pending (a code the model made up, or a stale one): answered by code, no model.
+            # A bare "yes" is NOT intercepted: with nothing pending it may be an ordinary answer to the model's question.
+            rt.emit("stray_confirm", {"run_id": state["run_id"]})
+            return {"exit": asdict(Exit("no_pending_approval"))}
         return {}
 
     def after_gate(state: ErrandState) -> str:
@@ -182,7 +189,7 @@ def build_graph(rt: Any) -> StateGraph:
                                           if turn.usage.cache_read_tokens or turn.usage.cache_write_tokens else {}),
                                        "tool_calls": [c.name for c in turn.tool_calls]})
                 if not turn.tool_calls:
-                    return out(Exit("answer", text=turn.text))
+                    return out(Exit("answer", text=turn.text, pending=bool(state.get("pending"))))
                 run_msgs.append(Message("assistant", turn.text or "", tuple(turn.tool_calls)))
                 reads_unseen = any(c.name in READ_TOOLS for c in turn.tool_calls)
                 for i, c in enumerate(turn.tool_calls):
@@ -204,7 +211,8 @@ def build_graph(rt: Any) -> StateGraph:
                                     request.pop(k, None)
                             rt.emit("ask_user", {"run_id": run_id, "missing": res.payload["missing"],
                                                  "known": sorted(res.request_update)})
-                            return out(Exit("ask", text=res.payload["question"], missing=res.payload["missing"]))
+                            return out(Exit("ask", text=res.payload["question"], missing=res.payload["missing"],
+                                            pending=bool(state.get("pending"))))
                         rt.emit("propose_requested", {"run_id": run_id, **res.payload})
                         return {"proposal_request": res.payload, "request": request, "options": options}
                     request.update(res.request_update)

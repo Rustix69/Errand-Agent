@@ -63,9 +63,9 @@ def test_the_trace_excerpt_in_the_design_note_is_real():
 # ----------------------------------------------------------------------------- the bugs
 
 
-def test_three_bugs_each_with_the_five_fields_and_real_regression_tests():
+def test_four_bugs_each_with_the_five_fields_and_real_regression_tests():
     entries = re.split(r"(?m)^## ", BUGS)[1:]
-    assert len(entries) == 3
+    assert len(entries) == 4
     for e in entries:
         for field in ("What broke", "Why", "Fix", "Regression test", "How it was found"):
             assert f"**{field}" in e, (e[:60], field)

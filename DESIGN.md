@@ -44,7 +44,7 @@ clock, so offline traces are reproducible. Excerpt of `artifacts/traces/timeout-
 ```
 
 The "yes" was approved by code (no model call); the status check, not the timeout, decides the outcome; there is one
-`book` call. In `run_000001.jsonl` a model call reads `turn 1 -> search_providers in=863 out=31 ~$0.003054 est
+`book` call. In `run_000001.jsonl` a model call reads `turn 1 -> search_providers in=919 out=31 ~$0.003222 est
 (scripted)` (synthetic tokens: the model is scripted).
 
 **Trade-offs, on purpose.**
