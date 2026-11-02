@@ -87,7 +87,12 @@ def test_the_page_and_the_theme_are_served_with_safe_headers(web):
     s, c = web()
     r = c.get("/")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"] and 'href="/theme.css"' in r.text
-    assert "default-src 'self'" in r.headers["content-security-policy"] and r.headers["x-content-type-options"] == "nosniff"
+    csp = r.headers["content-security-policy"]
+    assert "default-src 'self'" in csp and r.headers["x-content-type-options"] == "nosniff"
+    # exactly two outside hosts, one for the font stylesheet and one for the font files, and nothing else
+    assert re.findall(r"https://[^\s;]+", csp) == ["https://fonts.googleapis.com", "https://fonts.gstatic.com"]
+    assert "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com" in csp and "font-src https://fonts.gstatic.com" in csp
+    assert "script-src 'self' 'unsafe-inline';" in csp and "connect-src 'self'" in csp
     css = c.get("/theme.css")
     assert css.status_code == 200 and "--primary" in css.text and "text/css" in css.headers["content-type"]
 

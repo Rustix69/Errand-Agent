@@ -92,8 +92,11 @@ python -m demo.web --port 8080 --poll-seconds 2
 ```
 
 The same agent in the browser: the chat on the left, my bookings and the live trace on the right, the demo failure
-buttons and a light/dark toggle along the bottom. It is one static page styled by `demo/web/theme.css`, with no build
-step; the server is a small FastAPI app in `demo/web/server.py`.
+buttons and a light/dark toggle along the bottom. It is one static page styled by `demo/web/theme.css` (a warm cream,
+crimson and amber theme: subtle borders, soft shadows), with no build step; the server is a small FastAPI app in
+`demo/web/server.py`. Text is Poppins and trace rows, pills and timestamps are IBM Plex Mono, both loaded from Google
+Fonts; the server's Content-Security-Policy allows only `fonts.googleapis.com` and `fonts.gstatic.com`, and offline the
+page falls back to system fonts.
 
 - **The page can never book.** Its Confirm and Decline buttons only send the displayed text (`CONFIRM <code>` / `no`)
   through the normal chat endpoint, `POST /api/message`; whether that is an approval is decided by the approval guard

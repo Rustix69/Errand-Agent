@@ -4,43 +4,49 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Errand Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/theme.css">
 <style>
-  /* Layout only. Every colour, font, border colour, radius and shadow comes from theme.css variables. */
-  :root { --gap: calc(var(--spacing) * 3); --pad: calc(var(--spacing) * 3); --bw: 2px; }
+  /* Layout only. Every colour, font, border colour, radius and shadow comes from theme.css variables.
+     Poppins (--font-sans) is the main font; IBM Plex Mono (--font-mono) is used only for trace rows, pills and timestamps. */
+  :root { --gap: calc(var(--spacing) * 3); --pad: calc(var(--spacing) * 3); --bw: 1px; }
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.4; }
-  .mono { font-family: var(--font-mono); }
+  body { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.5; }
   .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   .skip { position: absolute; left: var(--pad); top: -4rem; z-index: 10; padding: var(--pad); background: var(--secondary);
-          color: var(--secondary-foreground); border: var(--bw) solid var(--border); font-weight: 700; }
+          color: var(--secondary-foreground); border: var(--bw) solid var(--secondary-foreground); border-radius: var(--radius); font-weight: 600; }
   .skip:focus { top: var(--pad); }
 
   header.top { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; padding: var(--pad) calc(var(--pad) * 1.5);
-               background: var(--primary); color: var(--primary-foreground); border-bottom: 3px solid var(--border); }
-  header.top h1 { margin: 0; font: 700 1.25rem var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+               background: var(--primary); color: var(--primary-foreground); box-shadow: var(--shadow-md); position: relative; z-index: 1; }
+  header.top h1 { margin: 0; font: 600 1.25rem var(--font-sans); letter-spacing: 0.01em; }
+  header.top #model { background: var(--primary-foreground); color: var(--primary); border-color: var(--primary-foreground); }
   header.top .grow { flex: 1; }
 
-  .pill { display: inline-block; padding: 0 calc(var(--spacing) * 2); border: var(--bw) solid var(--border); background: var(--muted);
-          color: var(--foreground); font: 700 0.7rem var(--font-mono); text-transform: uppercase; white-space: nowrap; vertical-align: middle; }
-  .pill.model  { background: var(--accent);    color: var(--accent-foreground); }
-  .pill.accent { background: var(--accent);    color: var(--accent-foreground); }
-  .pill.tool   { background: var(--secondary); color: var(--secondary-foreground); }
-  .pill.bad    { background: var(--primary);   color: var(--primary-foreground); }
-  .pill.ok     { background: var(--chart-4);   color: var(--secondary-foreground); }
-  .pill.poll   { background: var(--chart-5);   color: var(--secondary-foreground); }
-  .pill.node   { background: var(--muted);     color: var(--muted-foreground); }
+  /* pills: the event name is always the label; colour only helps tell the kinds apart at a glance */
+  .pill { display: inline-block; padding: 0 calc(var(--spacing) * 2); border: var(--bw) solid var(--muted-foreground);
+          border-radius: calc(var(--radius) * 2); background: var(--muted); color: var(--muted-foreground);
+          font: 500 0.72rem/1.7 var(--font-mono); white-space: nowrap; vertical-align: middle; }
+  .pill.model  { background: var(--info, var(--chart-4));    border-color: var(--info, var(--chart-4));    color: var(--primary-foreground); }
+  .pill.tool   { background: var(--chart-4);                 border-color: var(--chart-4);                 color: var(--background); }
+  .pill.bad    { background: var(--primary);                 border-color: var(--primary);                 color: var(--primary-foreground); }
+  .pill.ok     { background: var(--success, var(--chart-5)); border-color: var(--success, var(--chart-5)); color: var(--primary-foreground); }
+  .pill.poll   { background: var(--accent);                  border-color: var(--accent-foreground);       color: var(--accent-foreground); }
+  .pill.accent { background: var(--accent);                  border-color: var(--accent-foreground);       color: var(--accent-foreground); }
+  .pill.node   { background: var(--muted);                   border-color: var(--muted-foreground);        color: var(--muted-foreground); }
 
   main.main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
               gap: var(--gap); padding: var(--gap); }
   .chat, .panel { display: flex; flex-direction: column; min-height: 0; background: var(--card); color: var(--card-foreground);
-                  border: 3px solid var(--border); box-shadow: var(--shadow-md); }
+                  border: var(--bw) solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden; }
   .side { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1.3fr); gap: var(--gap); min-height: 0; min-width: 0; }
-  .panel h2 { margin: 0; padding: var(--pad); display: flex; align-items: center; gap: var(--gap); font: 700 0.9rem var(--font-mono);
-              text-transform: uppercase; background: var(--secondary); color: var(--secondary-foreground); border-bottom: var(--bw) solid var(--border); }
+  .panel h2 { margin: 0; padding: var(--pad); display: flex; align-items: center; gap: var(--gap); font: 600 0.95rem var(--font-sans);
+              background: var(--secondary); color: var(--secondary-foreground); border-bottom: var(--bw) solid var(--border); }
   .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
-  .list li { padding: calc(var(--spacing) * 2) var(--pad); border-bottom: 1px solid var(--border); }
+  .list li { padding: calc(var(--spacing) * 2) var(--pad); border-bottom: var(--bw) solid var(--border); }
   .empty { color: var(--muted-foreground); }
 
   /* chat */
@@ -50,67 +56,69 @@
   .msg.agent, .msg.notice { align-self: flex-start; align-items: flex-start; }
   .msg.user { align-self: flex-end; align-items: flex-end; }
   .msg.system { align-self: center; max-width: 100%; }
-  .meta { display: flex; align-items: baseline; gap: calc(var(--spacing) * 2); font: 0.75rem var(--font-mono); margin-bottom: var(--spacing); }
-  .sender { color: var(--primary); font-weight: 700; }
-  .time { color: var(--muted-foreground); }
-  .bubble { padding: calc(var(--spacing) * 2.5) var(--pad); border: var(--bw) solid var(--border); box-shadow: var(--shadow-sm);
-            white-space: pre-wrap; overflow-wrap: anywhere; }
-  .msg.agent .bubble, .msg.notice .bubble { background: var(--secondary); color: var(--secondary-foreground); }
-  .msg.user .bubble { background: var(--primary); color: var(--primary-foreground); }
+  .meta { display: flex; align-items: baseline; gap: calc(var(--spacing) * 2); font-size: 0.75rem; margin-bottom: var(--spacing); }
+  .sender { color: var(--chart-1); font-weight: 600; }
+  .time { color: var(--muted-foreground); font-family: var(--font-mono); }
+  .bubble { padding: calc(var(--spacing) * 2.5) var(--pad); border: var(--bw) solid var(--border); border-radius: var(--radius);
+            box-shadow: var(--shadow-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.agent .bubble, .msg.notice .bubble { background: var(--secondary); color: var(--secondary-foreground); border-color: var(--secondary-foreground); }
+  .msg.user .bubble { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
   .msg.notice .bubble { border-style: dashed; }
   .tag { margin-top: var(--spacing); }
-  .sys { display: inline-block; padding: var(--spacing) calc(var(--spacing) * 2); border: 1px dashed var(--border); background: var(--card);
-         color: var(--muted-foreground); font: 0.75rem var(--font-mono); }
+  .sys { display: inline-block; padding: var(--spacing) calc(var(--spacing) * 2); border: var(--bw) dashed var(--muted-foreground);
+         border-radius: var(--radius); background: var(--card); color: var(--muted-foreground); font-size: 0.78rem; }
 
   .typing { display: flex; gap: var(--spacing); padding: var(--pad) 0; }
   .typing[hidden] { display: none; }
-  .typing span { width: 0.6rem; height: 0.6rem; background: var(--foreground); border: 1px solid var(--border); animation: dot 1s infinite ease-in-out; }
+  .typing span { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: var(--primary); animation: dot 1s infinite ease-in-out; }
   .typing span:nth-child(2) { animation-delay: 0.15s; }
   .typing span:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes dot { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-0.5rem); } }
+  @keyframes dot { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-0.4rem); } }
 
-  /* approval card */
+  /* the approval card: the one memorable element (crimson border, amber halo, the only strong shadow on the page) */
   .approval { margin-top: var(--gap); }
-  .card { background: var(--card); color: var(--card-foreground); border: 3px solid var(--border); box-shadow: var(--shadow-md); max-width: 34rem; }
-  .card-h { margin: 0; padding: var(--pad); display: flex; gap: var(--gap); align-items: center; font: 700 0.9rem var(--font-mono);
-            text-transform: uppercase; background: var(--accent); color: var(--accent-foreground); }
+  .card { background: var(--card); color: var(--card-foreground); border: 2px solid var(--primary); border-radius: calc(var(--radius) * 2);
+          box-shadow: 0 0 0 4px var(--accent), var(--shadow-xl); max-width: 34rem; overflow: hidden; }
+  .card-h { margin: 0; padding: var(--pad); display: flex; gap: var(--gap); align-items: center; font: 600 1rem var(--font-sans);
+            background: var(--primary); color: var(--primary-foreground); }
   .terms { margin: 0; padding: var(--pad); display: grid; grid-template-columns: max-content 1fr; gap: var(--spacing) var(--gap); }
-  .terms dt { font: 700 0.75rem var(--font-mono); text-transform: uppercase; color: var(--muted-foreground); align-self: center; }
-  .terms dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
-  .terms .raw { display: block; font: 400 0.75rem var(--font-mono); color: var(--muted-foreground); }
+  .terms dt { font: 500 0.75rem var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); align-self: center; }
+  .terms dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+  .terms .raw { display: block; font: 400 0.72rem var(--font-mono); color: var(--muted-foreground); }
   .actions { display: flex; gap: var(--gap); padding: 0 var(--pad) var(--pad); flex-wrap: wrap; }
-  .note { margin: 0; padding: var(--pad); border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted-foreground); }
+  .note { margin: 0; padding: var(--pad); border-top: var(--bw) solid var(--border); font-size: 0.8rem; color: var(--muted-foreground); }
 
   /* buttons and the composer */
-  button { font: 700 0.9rem var(--font-sans); min-height: 44px; padding: 0 calc(var(--spacing) * 4); background: var(--card); color: var(--card-foreground);
-           border: var(--bw) solid var(--border); box-shadow: var(--shadow-xs); cursor: pointer; border-radius: var(--radius); }
-  button:hover:not(:disabled) { background: var(--secondary); color: var(--secondary-foreground); }
-  button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+  button { font: 600 0.9rem var(--font-sans); min-height: 44px; padding: 0 calc(var(--spacing) * 4); background: var(--card); color: var(--card-foreground);
+           border: var(--bw) solid var(--muted-foreground); border-radius: var(--radius); box-shadow: var(--shadow-xs); cursor: pointer; }
+  button:hover:not(:disabled) { background: var(--accent); color: var(--accent-foreground); }
+  button:active:not(:disabled) { transform: translateY(1px); }
   button:disabled { cursor: not-allowed; opacity: 0.5; }
-  .btn.confirm { background: var(--primary); color: var(--primary-foreground); }
-  .btn.decline { background: var(--card); color: var(--card-foreground); }
-  .composer { display: flex; gap: var(--gap); align-items: center; padding: var(--pad); border-top: 3px solid var(--border); background: var(--card); }
+  .btn.confirm { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .btn.confirm:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
+  .composer { display: flex; gap: var(--gap); align-items: center; padding: var(--pad); border-top: var(--bw) solid var(--border); background: var(--card); }
   .composer input { flex: 1; min-width: 0; min-height: 48px; padding: 0 var(--pad); font: 1rem var(--font-sans); background: var(--background);
-                    color: var(--foreground); border: var(--bw) solid var(--input); border-radius: var(--radius); }
+                    color: var(--foreground); border: var(--bw) solid var(--muted-foreground); border-radius: var(--radius); }
   button.send { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; background: var(--primary); color: var(--primary-foreground);
-                display: inline-flex; align-items: center; justify-content: center; }
+                border-color: var(--primary); display: inline-flex; align-items: center; justify-content: center; }
   button.send:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
   button.send svg { width: 22px; height: 22px; fill: currentColor; }
 
   /* bookings and trace */
   .bk { display: flex; flex-direction: column; gap: var(--spacing); }
-  .bk .top { display: flex; justify-content: space-between; gap: var(--gap); font-weight: 700; }
+  .bk .top { display: flex; justify-content: space-between; gap: var(--gap); font-weight: 600; }
+  .price { font-variant-numeric: tabular-nums; }
   .bk .sub { display: flex; gap: calc(var(--spacing) * 2); flex-wrap: wrap; align-items: center; color: var(--muted-foreground); font-size: 0.85rem; }
-  .tr { display: grid; grid-template-columns: auto 1fr auto; gap: calc(var(--spacing) * 2); align-items: baseline; font: 0.78rem var(--font-mono); }
+  .tr { display: grid; grid-template-columns: auto 1fr auto; gap: calc(var(--spacing) * 2); align-items: baseline; font: 400 0.78rem var(--font-mono); }
   .tr .txt { overflow-wrap: anywhere; }
   .tr .lat { color: var(--muted-foreground); }
 
   footer.strip { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; padding: var(--gap); background: var(--sidebar);
-                 color: var(--sidebar-foreground); border-top: 3px solid var(--border); }
-  footer.strip .label { font: 700 0.75rem var(--font-mono); text-transform: uppercase; }
+                 color: var(--sidebar-foreground); border-top: var(--bw) solid var(--sidebar-border); }
+  footer.strip .label { font: 600 0.78rem var(--font-sans); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted-foreground); }
   footer.strip .push { margin-left: auto; }
   #toast { position: fixed; right: var(--gap); bottom: 5.5rem; max-width: 24rem; padding: var(--pad); background: var(--card); color: var(--card-foreground);
-           border: 3px solid var(--border); box-shadow: var(--shadow-md); font-weight: 700; }
+           border: var(--bw) solid var(--primary); border-radius: var(--radius); box-shadow: var(--shadow-lg); font-weight: 500; }
   #toast[hidden] { display: none; }
 
   @media (max-width: 900px) {
@@ -285,7 +293,7 @@ function updateTyping() {
 }
 
 // ---- bookings and trace -----------------------------------------------------------------------
-const STATUS = { confirmed: ["accent", "confirmed"], completed: ["node", "completed"], cancelled: ["node", "cancelled"],
+const STATUS = { confirmed: ["ok", "confirmed"], completed: ["node", "completed"], cancelled: ["node", "cancelled"],
                  cancelled_by_provider: ["bad", "cancelled by provider"] };
 function renderBookings(list) {
   const ul = $("#bookings");
@@ -298,7 +306,7 @@ function renderBookings(list) {
     const li = el("li");
     const wrap = el("div", "bk");
     const top = el("div", "top");
-    top.append(el("span", null, b.provider_name), el("span", "mono", rupees(b.price)));
+    top.append(el("span", null, b.provider_name), el("span", "price", rupees(b.price)));
     const sub = el("div", "sub");
     const [cls, label] = STATUS[b.status] || ["node", words(b.status)];
     sub.append(el("span", null, words(b.service) + " · " + prettySlot(b.slot)), el("span", "pill " + cls, label),

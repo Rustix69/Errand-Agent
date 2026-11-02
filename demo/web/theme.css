@@ -114,3 +114,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* PROPOSED ADDITIONS (2 tokens), not part of the original theme. The warm palette has no cool hue, and its fills sit
+   only 0.02-0.09 apart in OKLab, so model calls, errors and approvals are hard to tell apart in the live trace.
+   --info (blue, model calls) and --success (green, approval and execution) are 0.18-0.26 away from every warm fill.
+   Text on both is --primary-foreground and passes 4.5:1 in light and dark (tests/web/test_theme.py checks it).
+   The page uses var(--info, var(--chart-4)) / var(--success, var(--chart-5)), so deleting these falls back to warm. */
+:root {
+  --info: oklch(0.46 0.13 250);
+  --success: oklch(0.46 0.10 150);
+}
+.dark {
+  --info: oklch(0.52 0.14 250);
+  --success: oklch(0.52 0.12 150);
+}
