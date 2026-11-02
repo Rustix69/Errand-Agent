@@ -22,6 +22,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from errand.agent.outbox import recent_notices
 from errand.agent.prompts import SYSTEM_RULES, state_block
 from errand.agent.tools import MODEL_TOOLS
 from errand.core.store import AgentStore, iso
@@ -71,7 +72,7 @@ class ContextBuilder:
     def build(self, *, run_id: str, session_id: str, user_id: str, turn: int, now_iso: str, request: dict[str, Any],
               options: list[dict[str, Any]], pending: dict[str, Any] | None, user_message: str,
               run_msgs: list[Message]) -> ModelRequest:
-        state = state_block(now_iso, request, options[:MAX_OPTIONS], pending)
+        state = state_block(now_iso, request, options[:MAX_OPTIONS], pending, recent_notices(self.store, session_id))
         words = words_of(user_message) | {w for v in request.values() if isinstance(v, str) for w in words_of(v)}
 
         def make(mems: list[Memory], recent: list[Turn], summary: str | None) -> ModelRequest:

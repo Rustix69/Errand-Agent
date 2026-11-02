@@ -14,7 +14,7 @@ from tests.agent.conftest import make_agent  # noqa: F401  (shared fixture)
 from tests.evals.harness import Run, Turn
 
 ARTIFACTS = Path(__file__).resolve().parents[2] / "artifacts"
-GROUPS = "BESFLCMR"  # table order: basic, examples, safety, failures, limits, context, memory, restart
+GROUPS = "BESFLCMRP"  # table order: basic, examples, safety, failures, limits, context, memory, restart, proactive
 _RECORDS: list["EvalRecord"] = []
 
 

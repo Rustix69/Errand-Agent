@@ -47,6 +47,15 @@ class Run:
         self.record()
         return reply
 
+    def poll(self, before: Callable[[AgentEnv], None] | None = None) -> Any:
+        """The proactive poller runs with NO user message. `before(a)` fires a simulator event first."""
+        if before:
+            before(self.a)
+        try:
+            return self.a.poll()
+        finally:
+            self.record()
+
     def play(self, turns: list[str | Turn]) -> None:
         for t in turns:
             self.say(*((t.text, t.before) if isinstance(t, Turn) else (t,)))
@@ -68,7 +77,16 @@ class Run:
 
     def facts(self) -> dict[str, Any]:
         a, store = self.a, self.a.env.store
+        proactive = {}
+        events = store.all("SELECT status, reason FROM proactive_events ORDER BY id")
+        if events:  # only scenarios that involve the poller show these columns
+            proactive = {
+                "proactive_events": [f"{e['status']}{'/' + e['reason'] if e['reason'] else ''}" for e in events],
+                "notices": [r["kind"] for r in store.all("SELECT kind FROM outbox ORDER BY id")],
+                "holds": a.env.count("hold_slot"),
+            }
         return {
+            **proactive,
             "replies": [f"{r.status}/{r.kind}" for r in self.replies],
             "agent_bookings": len(self.mine()),
             "world_calls book/cancel/reschedule": "/".join(str(a.env.count(t)) for t in ("book", "cancel", "reschedule")),

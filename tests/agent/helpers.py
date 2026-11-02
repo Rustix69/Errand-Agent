@@ -6,7 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from errand.agent import AgentHandle, Runtime, create_agent
+from errand.agent import AgentHandle, PollHooks, Poller, Runtime, create_agent
 from errand.agent.context import DEFAULT_BUDGET, ContextBuilder
 from errand.agent.tools import MODEL_TOOL_NAMES
 from errand.core import BudgetLimits
@@ -21,7 +21,7 @@ EXPECTED_TOOLS = ("search_providers", "get_provider", "list_bookings", "propose_
 class AgentEnv:
     def __init__(self, env: Env, model: ScriptedModel, budget_limits: BudgetLimits | None = None,
                  session: str = SESSION, checkpoint: Path | None = None, trace: Any = None,
-                 context_budget: int = DEFAULT_BUDGET, seed: bool = False) -> None:
+                 context_budget: int = DEFAULT_BUDGET, seed: bool = False, poll_hooks: PollHooks | None = None) -> None:
         self.env, self.model = env, model
         self.events = env.events  # the executor already appends here, so ordering is global
 
@@ -38,11 +38,17 @@ class AgentEnv:
             env.store, env.guard, env.executor, env.agent_tools, model, env.clock, "u_demo",
             self.memory, self.turns, self.context, budget_limits=budget_limits or BudgetLimits(), emit=emit,
         )
+        self.session = session
+        self.poller = Poller(self.rt, poll_hooks)
         self.handle: AgentHandle = create_agent(self.rt, session, checkpoint or env.tmp_path / "checkpoints.db")
         self.agent = self.handle.agent
 
     def say(self, text: str):
         return self.agent.send(text)
+
+    def poll(self):
+        """The proactive poller, run with no user message."""
+        return self.poller.poll(self.session)
 
     def names(self) -> list[str]:
         return [n for n, _ in self.events]

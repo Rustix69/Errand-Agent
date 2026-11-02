@@ -8,7 +8,7 @@
 - [x] 4. Trace logger (`errand/trace/`, `tests/trace/`)
 - [x] 5. Memory, seeds and context builder (`errand/memory/`, `errand/agent/context.py`, `tests/memory/`, `tests/agent/test_context.py`)
 - [x] 6. Remaining eval scenarios incl. restart and crash injection (`tests/evals/`, `artifacts/eval_table.md`)
-- [ ] 7. Proactive poller
+- [x] 7. Proactive poller (`errand/agent/poller.py`, `errand/agent/outbox.py`, `tests/agent/test_poller.py`, `tests/evals/test_proactive.py`)
 - [ ] 8. Real AnthropicClient and CLI
 - [ ] 9. Eval table generator, DESIGN.md, BUGS.md, README, raw trace
 - [ ] 10. Demo

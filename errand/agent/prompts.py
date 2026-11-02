@@ -25,8 +25,10 @@ Rules that always apply:
    memories: the system does that when the user asks. Never claim you did."""
 
 
-def state_block(now_iso: str, request: dict[str, Any], options: list[dict[str, Any]], pending: dict | None) -> str:
-    return json.dumps(
-        {"now": now_iso, "request_so_far": request, "last_search_options": options, "pending_proposal": pending},
-        ensure_ascii=False, separators=(",", ":"),
-    )
+def state_block(now_iso: str, request: dict[str, Any], options: list[dict[str, Any]], pending: dict | None,
+                notices: list[str] | None = None) -> str:
+    state: dict[str, Any] = {"now": now_iso, "request_so_far": request, "last_search_options": options,
+                             "pending_proposal": pending}
+    if notices:  # code-written notices the agent raised on its own (e.g. a provider cancelled); trusted
+        state["recent_notices"] = notices
+    return json.dumps(state, ensure_ascii=False, separators=(",", ":"))

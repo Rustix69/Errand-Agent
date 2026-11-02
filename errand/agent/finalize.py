@@ -108,6 +108,9 @@ def _approval_request(p: dict[str, Any], lead: str = "") -> str:
             f"(or CONFIRM {p['confirm_code']}), or tell me what to change.")
 
 
+approval_request = _approval_request  # public: the poller reuses the exact same approval wording
+
+
 def _done(e: Exit) -> str:
     b = e.booking or {}
     who = b.get("provider_name") or b.get("provider_id", "the provider")
