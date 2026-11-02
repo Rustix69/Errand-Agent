@@ -26,8 +26,8 @@ from typing import TYPE_CHECKING, Any
 
 from errand.clock import IST, Clock
 from errand.mocks import catalog
-from errand.mocks.errors import ErrorCode, ToolError
-from errand.mocks.models import BookingInfo, HoldInfo
+from errand.contract.errors import ErrorCode, ToolError
+from errand.contract.models import BookingInfo, HoldInfo
 from errand.mocks.scenario import ConflictSlot, ScenarioConfig, roll
 
 if TYPE_CHECKING:

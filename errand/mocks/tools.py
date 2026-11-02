@@ -20,8 +20,10 @@ from typing import Any, TypeVar
 from pydantic import ValidationError
 
 from errand.mocks import catalog
-from errand.mocks.errors import ErrorCode, ServiceUnavailable, SimulatedCrash, ToolError, ToolTimeout
-from errand.mocks.models import (
+from errand.contract.port import TOOL_NAMES
+from errand.contract.errors import ErrorCode, ServiceUnavailable, ToolError, ToolTimeout
+from errand.mocks.crash import SimulatedCrash
+from errand.contract.models import (
     BookingList,
     BookingStatusResult,
     BookResult,
@@ -68,16 +70,7 @@ def _coerce_range(value: Any) -> DateRange:
 
 
 class MarketplaceTools:
-    TOOL_NAMES = (
-        "search_providers",
-        "get_provider",
-        "hold_slot",
-        "book",
-        "get_booking_status",
-        "cancel",
-        "reschedule",
-        "list_bookings",
-    )
+    TOOL_NAMES = TOOL_NAMES
 
     def __init__(self, world: MockWorld, user_id: str) -> None:
         self._w = world

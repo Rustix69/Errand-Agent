@@ -10,7 +10,7 @@ import json
 from typing import Any
 
 from errand.mocks import catalog
-from errand.mocks.errors import ErrorCode, ToolError
+from errand.contract.errors import ErrorCode, ToolError
 from errand.mocks.scenario import FORCEABLE, ConflictSlot
 from errand.mocks.world import MockWorld, iso, normalize_slot
 

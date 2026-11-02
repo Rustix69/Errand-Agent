@@ -1,4 +1,4 @@
-"""Errors raised by the mock marketplace tools.
+"""Errors raised by marketplace tools (the shared tool contract).
 
 Business outcomes (``slot_taken``, ``hold_expired``, ``slot_conflict`` ...) and
 transport failures (``timeout``, ``unavailable``/503) are all ``ToolError`` with a
@@ -78,11 +78,3 @@ class ServiceUnavailable(ToolError):
             retryable=True,
             details={"tool": tool, "http_status": 503},
         )
-
-
-class SimulatedCrash(BaseException):
-    """Crash injection: the process 'dies' right after the side effect commits.
-
-    Derives from BaseException so ordinary ``except Exception`` recovery code in
-    the agent cannot swallow it, exactly like a real process kill.
-    """

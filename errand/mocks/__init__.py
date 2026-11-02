@@ -1,7 +1,8 @@
 """Mock home-services marketplace: 8 contract tools, seeded + forced outcomes, fake clock."""
 
 from errand.mocks.catalog import AREAS, DEMO_USER_ID, OTHER_USER_ID, SERVICES
-from errand.mocks.errors import ErrorCode, ServiceUnavailable, SimulatedCrash, ToolError, ToolTimeout
+from errand.contract.errors import ErrorCode, ServiceUnavailable, ToolError, ToolTimeout
+from errand.mocks.crash import SimulatedCrash
 from errand.mocks.scenario import FORCEABLE, ConflictSlot, ScenarioConfig
 from errand.mocks.simulator import Simulator
 from errand.mocks.tools import MarketplaceTools

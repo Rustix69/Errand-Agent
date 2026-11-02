@@ -15,3 +15,11 @@ Logged when they happened. The three for the deliverable get picked from this li
 - **Why:** Seed-derived data (computed from the clock at seed time) was stored inside caller-owned config, so it got overwritten whenever the config was replaced.
 - **Fix:** Seed conflicts are stored in `world_meta.seed_conflicts` and merged at lookup time by `MockWorld.conflict_slots()`, still gated by `seed_default_conflicts`.
 - **Regression test:** `tests/mocks/test_cancel_reschedule_list.py::test_seeded_conflict_survives_reopen_with_new_config`
+
+## 3. A confirmed attempt kept a stale `hold_expired` error code (phase 2, executor)
+
+- **What broke:** When `book` reported `hold_expired`, the executor wrote `error_code='hold_expired'` on the still-PENDING attempt while it asked the source of truth. If the truth then said the booking had in fact happened (timeout-after-commit, hold expiring during backoff), the attempt became `CONFIRMED` but kept `error_code='hold_expired'`. The booking and the user message were right; the audit row said a successful booking had failed with an expiry. Startup recovery had the same gap.
+- **How it was found:** by reading the code while designing the "timeout after commit, hold expires during backoff" test, before any test failed. No test had existed for it yet.
+- **Why:** `update_attempt` only wrote fields that were given, so nothing ever cleared the code set earlier on the same row.
+- **Fix:** `update_attempt(..., clear_error=True)`; `IdempotentExecutor._confirm` and `resolve_pending` pass it when marking CONFIRMED.
+- **Regression tests:** `tests/core/test_executor_hold_expired.py::test_hold_expired_claim_is_verified_not_trusted` (fails if `clear_error` is removed from `_confirm`, checked by hand) and `tests/core/test_recovery.py::test_crash_after_commit_is_recovered_to_confirmed_and_yes_returns_it` (asserts `error_code is None` after recovery).
