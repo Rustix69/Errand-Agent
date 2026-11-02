@@ -41,8 +41,9 @@ class Env:
         limits: Limits | None = None,
         tools_wrapper: Any = None,
         approval_ttl_s: int = 180,
+        trace: Any = None,
     ) -> None:
-        self.tmp_path, self.clock = tmp_path, clock
+        self.tmp_path, self.clock, self.trace = tmp_path, clock, trace
         if config is None and not (tmp_path / "world.db").exists():
             config = ScenarioConfig(mode="forced")  # fresh world: only the failures a test forces
         # On a restart config stays None, so the stored scenario (mode, seed) is reused.
@@ -55,8 +56,13 @@ class Env:
         self.out_of_band_keys: set[str] = set()  # world actions NOT made by the agent (declared by the test)
         self.executor = IdempotentExecutor(
             self.store, self.guard, self.agent_tools, clock, DEMO_USER_ID,
-            limits=limits, hooks=hooks, on_event=lambda n, d: self.events.append((n, d)),
+            limits=limits, hooks=hooks, on_event=self._on_event,
         )
+
+    def _on_event(self, name: str, data: dict[str, Any]) -> None:
+        self.events.append((name, data))
+        if self.trace:
+            self.trace(name, data)
 
     # ------------------------------------------------------------------ lifecycle
 

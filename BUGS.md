@@ -23,3 +23,24 @@ Logged when they happened. The three for the deliverable get picked from this li
 - **Why:** `update_attempt` only wrote fields that were given, so nothing ever cleared the code set earlier on the same row.
 - **Fix:** `update_attempt(..., clear_error=True)`; `IdempotentExecutor._confirm` and `resolve_pending` pass it when marking CONFIRMED.
 - **Regression tests:** `tests/core/test_executor_hold_expired.py::test_hold_expired_claim_is_verified_not_trusted` (fails if `clear_error` is removed from `_confirm`, checked by hand) and `tests/core/test_recovery.py::test_crash_after_commit_is_recovered_to_confirmed_and_yes_returns_it` (asserts `error_code is None` after recovery).
+
+## 4. `propose_booking` reached the graph with the wrong action name (phase 3, graph)
+
+- **What broke:** The very first graph test ended in `TOOL_FAILURE` / `KeyError`. The router turned the tool name `propose_booking` into the action `"booking"` with `removeprefix("propose_")`, but the `hold` node and the guard use `"book"`. No proposal was ever created.
+- **Why:** The action vocabulary (`book | cancel | reschedule`) and the tool names (`propose_booking | propose_cancel | propose_reschedule`) are not the same words, and the code derived one from the other by string surgery.
+- **Fix:** An explicit `_ACTION` map in `errand/agent/tools.py`.
+- **Regression test:** every propose test in `tests/agent/test_graph_flow.py` (e.g. `test_approval_is_decided_by_code_before_the_model_sees_the_message`) fails without it.
+
+## 5. After a re-quote the reply pointed at the OLD proposal (phase 3, finalize)
+
+- **What broke:** When the executor returned `needs_reapproval` with a fresh proposal (the replacement hold cost one rupee more), the `Reply` still carried the id of the old, invalidated proposal while the message and the pending state showed the new one. A client or trace keyed on `Reply.proposal_id` would have tracked the wrong proposal.
+- **Why:** `finalize` copied `Exit.proposal_id` (the proposal that was executed) into `Final.proposal_id`, but for a request for approval the relevant id is the new proposal's.
+- **Fix:** `finalize` uses the new proposal's id whenever it is asking for approval.
+- **Regression test:** `tests/agent/test_graph_flow.py::test_changed_quote_after_approval_asks_again_and_book_is_not_called`.
+
+## 6. `trace save --out artifacts/traces` wrote a file named `traces` (phase 4, trace CLI)
+
+- **What broke:** `save` only treated `--out` as a directory if it already existed. With a new path like `artifacts/traces` it copied the run's JSONL to a regular file called `traces`, so the next `save` to that path failed with `NotADirectoryError`.
+- **Why:** the check was `out.is_dir()`, which is false for a directory that doesn't exist yet.
+- **Fix:** `--out` is a directory unless it ends in `.jsonl` (or is an existing directory).
+- **Regression test:** `tests/trace/test_trace_cli.py::test_save_is_a_plain_copy_of_only_that_run`.
