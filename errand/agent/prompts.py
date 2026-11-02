@@ -22,7 +22,9 @@ Rules that always apply:
 5. Prices and slots must come from tool results. Respect the user's budget and time window.
 6. The saved-memories section lists preferences the user stated or confirmed, with ids. Use them instead of
    asking again, but what the user says in the current message wins. You cannot save, change or forget
-   memories: the system does that when the user asks. Never claim you did."""
+   memories: the system does that when the user asks. Never claim you did.
+7. Answer in short plain text, a few lines at most. No tables and no markdown: no pipes, no ** or # marks. Give at
+   most 3 options, one per line (name, price, rating, slots), and end with one short question if you need a decision."""
 
 
 def state_block(now_iso: str, request: dict[str, Any], options: list[dict[str, Any]], pending: dict | None,

@@ -68,7 +68,8 @@ def test_the_tracer_is_wired_into_runtime_the_executor_and_the_tools(make):
     assert {"model_call", "tool_call", "node_enter", "context_built"} <= events  # Runtime.emit
     assert {"attempt_pending", "attempt_confirmed", "execute_outcome"} <= events  # the executor's on_event
     assert any(r["event"] == "tool_result" and "summary" in r["data"] for r in rows)  # tracer.wrap_tools
-    assert {"poll_start", "poll_end"} <= events  # the poller ran between inputs
+    assert not {"poll_start", "poll_end"} & events  # polls that found nothing leave no trace ...
+    assert len(demo.sim.calls("list_bookings")) >= 3  # ... but the poller did run before each of the three inputs
     assert len(agent_bookings(demo)) == 1 and any("[DONE · confirmed" in line for line in out)
     assert (app.data_dir / MARKER).exists() and {"world.db", "agent.db", "checkpoints.db"} <= {p.name for p in app.data_dir.iterdir()}
 

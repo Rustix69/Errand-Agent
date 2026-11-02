@@ -26,7 +26,7 @@ correct, forget, confirm and plain statements ("I'm in Jadavpur") are handled by
 3,000-token budget in priority order (rules, state, memories, recent turns, a counts-only summary) and logs each
 request's memory ids and token count in `context_log`.
 
-**Observability.** One JSONL trace per run and per proactive poll: node transitions, model calls with token usage,
+**Observability.** One JSONL trace per run and per proactive poll that found something: node transitions, model calls with token usage,
 tool names and arguments, a short summary of each result, latency and an *estimated* cost; time comes from an injected
 clock, so offline traces are reproducible. Excerpt of `artifacts/traces/timeout-after-success/run_000002.jsonl`
 (scripted run; `book` commits, then times out):
@@ -44,7 +44,7 @@ clock, so offline traces are reproducible. Excerpt of `artifacts/traces/timeout-
 ```
 
 The "yes" was approved by code (no model call); the status check, not the timeout, decides the outcome; there is one
-`book` call. In `run_000001.jsonl` a model call reads `turn 1 -> search_providers in=750 out=31 ~$0.002715 est
+`book` call. In `run_000001.jsonl` a model call reads `turn 1 -> search_providers in=808 out=31 ~$0.002889 est
 (scripted)` (synthetic tokens: the model is scripted).
 
 **Trade-offs, on purpose.**
@@ -55,6 +55,6 @@ The "yes" was approved by code (no model call); the status check, not the timeou
 - *SQLite behind `MemoryStore`; production would use pgvector.* A test runs the graph, context builder and poller on a
   store implementing only that interface. Cost: ranking is crude (tags and shared words).
 - *The poller is plain code, not graph nodes.* No user turn, no model call: deterministic and testable. Cost: it runs
-  between CLI inputs, not as a background worker.
+  between CLI inputs, or on a web-server timer that skips a tick while a message runs; there is no separate worker.
 - *20% price cap.* A replacement costs at most 120% of the cancelled booking (no structured budget is stored); the
   quoted price is still shown for approval.

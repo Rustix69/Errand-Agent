@@ -1,6 +1,6 @@
 import pytest
 
-from errand.agent.finalize import STATUS_BY_KIND, Exit, finalize
+from errand.agent.finalize import STATUS_BY_KIND, Exit, claims_completed_action, finalize
 
 BOOKING = {"booking_id": "bk_9", "provider_name": "Acme", "provider_id": "pl_1", "slot": "2026-11-03T09:00",
            "price": 800, "status": "confirmed"}
@@ -56,3 +56,64 @@ def test_approval_request_comes_from_stored_terms_and_shows_the_confirm_phrase()
 def test_limit_messages_name_the_limit():
     for reason, word in (("model_turns", "model-turn"), ("tool_calls", "tool-call"), ("wall_clock", "time")):
         assert word in finalize(Exit("limit", reason=reason)).message
+
+
+# ----------------------------------------------------------------------------- the unverified-claim guard (BUGS #3)
+
+OPTIONS_REPLY = """Morning slots from 10:00 (I read "morning" as 10:00 to 12:00), within ₹1,500:
+
+| Provider | Technician | Price | Rating | Morning slots (Nov 3) | Notes |
+|---|---|---|---|---|---|
+| **AquaFix Services** | Suresh M. (your preferred technician) | ₹1,450 | 3.9 (49) | 10:00, 11:00 | Verified, 30-day warranty, leak fixing |
+| **Shree Sai Plumbers** | Imran S. | ₹1,000 | 4.2 (86) | 11:00 | Verified, 13 yrs experience, 90-day warranty |
+
+**Left out:**
+- DripStop Experts costs ₹1,750, which is over budget.
+- All the slots found are today (Nov 3), apart from one DripStop slot on Nov 4.
+
+**My pick:** AquaFix with Suresh M. at 10:00 today. If you'd rather pay less and get a longer warranty, Shree Sai at 11:00 is a good alternative.
+
+I can't tell from the listings whether either plumber brings spare washers, which you like for your recurring tap issue.
+
+Would you like me to propose a booking for one of these? You'll get a confirmation to approve before anything is booked."""
+EXACT = ("Would you like me to propose a booking for one of these? You'll get a confirmation to approve before "
+         "anything is booked.")
+
+
+def test_a_harmless_options_reply_gets_no_note_even_though_it_says_booked_in_the_future():
+    """Regression (BUGS #3): the real model wrote "before anything is booked" and the note "Nothing was booked,
+    cancelled or changed" was appended, with reason unverified_claim."""
+    for text in (EXACT, OPTIONS_REPLY):
+        f = finalize(Exit("answer", text=text))
+        assert (f.status, f.kind, f.reason) == ("DONE", "answer", None)
+        assert f.message == text  # unchanged: no note appended
+
+
+@pytest.mark.parametrize("text", [
+    "All set! I've booked the plumber for you.",  # the S3 scenario
+    "I booked it for 10:00.", "I have cancelled your cleaning.", "I've rescheduled your AC servicing to Friday.",
+    "Your booking is confirmed.", "Your appointment has been rescheduled to Friday.", "Booked!", "All set, booked.",
+    "It's booked.", "Great, that's booked for Tuesday.", "I've confirmed it.", "Done. I just cancelled your booking.",
+    "I've booked it, and you can reschedule later.",  # a hedge AFTER the claim does not cancel it
+])
+def test_first_person_completed_claims_still_get_the_note(text):
+    f = finalize(Exit("answer", text=text))
+    assert f.reason == "unverified_claim" and f.message.startswith(text) and "Nothing was booked" in f.message
+
+
+@pytest.mark.parametrize("text", [
+    "I can book it once you approve.", "It will be booked after you confirm.", "If you approve, it'll be booked for 10:00.",
+    "Nothing is booked yet.", "I haven't booked anything.", "I can't confirm it's booked until you approve.",
+    "Want me to cancel it?", "You'll get a confirmation.", "The 10:00 slot is booked, so I used 11:00.",
+    "Booked slots are shown below.", "Before anything is booked you will approve it.", "I'll have it booked once you say yes.",
+    "I confirmed the slot is free.", "Your AC servicing is booked for Wednesday.",
+])
+def test_future_conditional_negated_and_descriptive_wording_is_not_a_claim(text):
+    assert claims_completed_action(text) is False
+    assert finalize(Exit("answer", text=text)).message == text
+
+
+def test_the_note_is_still_only_ever_added_to_a_model_answer():
+    """Executor outcomes and other exits keep their own code-written text; the claim guard is for `answer` only."""
+    f = finalize(Exit("ask", text="I've booked nothing yet. Which area?", missing=["area"]))
+    assert f.reason is None and f.message == "I've booked nothing yet. Which area?"

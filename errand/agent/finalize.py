@@ -72,9 +72,43 @@ _REASONS = {
 _LIMITS = {"model_turns": "model-turn", "tool_calls": "tool-call", "wall_clock": "time", "context_budget": "context-size"}
 
 
-# A model reply is not a source of truth. If its text CLAIMS an action happened, code adds the real status.
-_CLAIM = re.compile(r"\b(booked|cancell?ed|rescheduled|confirmed)\b", re.I)
+# A model reply is not a source of truth. If its text CLAIMS an action was completed, code adds the real status.
+# Only completed claims count: first person ("I've booked it") or the finished state of the user's own booking
+# ("your booking is confirmed", "It's booked", "Booked!"). Future, conditional and negated wording ("before anything
+# is booked", "once you approve it'll be booked", "nothing is booked yet") and nouns/adjectives ("booked slots") do not.
 _UNVERIFIED = " (Nothing was booked, cancelled or changed in this step. Only a verified result counts.)"
+_DONE = r"(?:booked|cancell?ed|rescheduled)"
+_ADV = r"(?:(?:now|just|already|successfully|officially|gone ahead and)\s+)*"
+_CLAIM_PATTERNS = (
+    # I booked / I've cancelled / we have rescheduled ...
+    re.compile(rf"\b(?:I|we)(?:['’]ve| have)?\s+{_ADV}{_DONE}\b", re.I),
+    # I've confirmed it / I have confirmed your booking
+    re.compile(rf"\b(?:I|we)(?:['’]ve| have)?\s+{_ADV}confirmed\s+(?:it\b|your\s+(?:booking|appointment|reservation|visit)\b"
+               r"|the\s+(?:booking|appointment|reservation)\b)", re.I),
+    # your booking is confirmed / your appointment has been rescheduled
+    re.compile(rf"\b(?:your|the)\s+(?:\w+\s+){{0,3}}?(?:booking|appointment|reservation|visit)\s+"
+               rf"(?:is|has\s+been|is\s+now)\s+{_ADV}(?:{_DONE}|confirmed)\b", re.I),
+    # it's booked / that has been confirmed
+    re.compile(rf"\b(?:it|that|this)(?:['’]s|\s+is|\s+has\s+been)\s+{_ADV}(?:all\s+)?(?:{_DONE}|confirmed)\b", re.I),
+)
+_BARE_CLAIM = re.compile(rf"^\W*(?:(?:all\s+set|done)\W+)?(?:{_DONE}|confirmed)\W*$", re.I)  # a sentence that is just "Booked!"
+_HEDGE = re.compile(r"\b(?:before|until|once|after|if|unless|when|whenever|whether|will|would|could|can|should|might|may|"
+                    r"not|never|nothing|no)\b|n['’]t\b|['’]ll\b", re.I)
+_SENTENCES = re.compile(r"(?<=[.!?])\s+|\n+")
+
+
+def claims_completed_action(text: str) -> bool:
+    """True if `text` says a booking, cancellation or reschedule HAS been done. A match is ignored when a hedge word
+    (before, once, if, will, can't, nothing ...) comes earlier in the same sentence. Limit: a harmless description of an
+    existing booking worded "your booking is confirmed" is still flagged; the guard cannot tell it from a false claim."""
+    for sentence in _SENTENCES.split(text):
+        if _BARE_CLAIM.match(sentence):
+            return True
+        for pattern in _CLAIM_PATTERNS:
+            for m in pattern.finditer(sentence):
+                if not _HEDGE.search(sentence[:m.start()]):
+                    return True
+    return False
 
 
 def _inr(n: Any) -> str:
@@ -204,7 +238,7 @@ def finalize(e: Exit) -> Final:
         msg, waiting = e.text or "What details can you share?", "input"
     elif kind == "answer":
         msg = e.text or "Is there anything else you'd like to arrange?"
-        if _CLAIM.search(msg):  # an `answer` never follows a verified outcome: a claim in it is unverified
+        if claims_completed_action(msg):  # an `answer` never follows a verified outcome: a claim in it is unverified
             msg, claim = msg + _UNVERIFIED, "unverified_claim"
     elif kind == "slot_unavailable":
         msg, waiting = "That option can't be held any more. Want me to search again?", "input"

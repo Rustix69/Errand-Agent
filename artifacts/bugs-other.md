@@ -16,6 +16,14 @@ These were real and fixed, each with a regression test, but are not part of the 
 - **Fix:** Seed conflicts are stored in `world_meta.seed_conflicts` and merged at lookup time by `MockWorld.conflict_slots()`, still gated by `seed_default_conflicts`.
 - **Regression test:** `tests/mocks/test_cancel_reschedule_list.py::test_seeded_conflict_survives_reopen_with_new_config`
 
+## 5. After a re-quote the reply pointed at the OLD proposal (phase 3, finalize)
+
+- **What broke:** When the executor returned `needs_reapproval` with a fresh proposal (the replacement hold cost one rupee more), `Reply.proposal_id` still carried the id of the old, invalidated proposal while the message and the pending state showed the new one. A client or trace keyed on `Reply.proposal_id` would have tracked the wrong proposal. The booking itself was never affected.
+- **Why:** `finalize` copied `Exit.proposal_id` (the proposal that was executed) into `Final.proposal_id`, but for a request for approval the relevant id is the new proposal's.
+- **Fix:** `finalize` uses the new proposal's id whenever it is asking for approval.
+- **Regression test:** `tests/agent/test_graph_flow.py::test_changed_quote_after_approval_asks_again_and_book_is_not_called`.
+- **How it was found:** by a test I wrote for the changed-quote-after-approval flow. Its check that the proposal the reply points at is the re-quote (it must have a parent proposal) failed, because the reply pointed at the original one. I fixed `finalize`, then reverted the fix once to confirm the test fails without it. The same test also failed once for a mistake of my own (`a.state()` instead of `a.agent.state()`), which was not a product bug and is not logged.
+
 ## 6. `trace save --out artifacts/traces` wrote a file named `traces` (phase 4, trace CLI)
 
 - **What broke:** `save` only treated `--out` as a directory if it already existed. With a new path like `artifacts/traces` it copied the run's JSONL to a regular file called `traces`, so the next `save` to that path failed with `NotADirectoryError`.

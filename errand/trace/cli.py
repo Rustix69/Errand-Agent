@@ -116,8 +116,9 @@ class Follower:
     def _files(self) -> list[Path]:
         return sorted(self.dir.glob("*.jsonl"), key=lambda p: (p.stat().st_mtime, p.name)) if self.dir.exists() else []
 
-    def poll(self) -> list[str]:
-        out: list[str] = []
+    def _read_new(self) -> list[tuple[Path, dict[str, Any]]]:
+        """New complete rows since the last call, in file order, with the file each came from."""
+        rows: list[tuple[Path, dict[str, Any]]] = []
         files = self._files()
         if not self._started:
             self._started = True
@@ -133,14 +134,21 @@ class Follower:
             if not end:
                 continue
             self.offsets[p] += end
+            rows += [(p, json.loads(raw)) for raw in data[:end].decode("utf-8").splitlines() if raw.strip()]
+        return rows
+
+    def poll_rows(self) -> list[dict[str, Any]]:
+        """The same tail as ``poll`` but as row dicts (the web UI colour-codes them itself)."""
+        return [row for _, row in self._read_new()]
+
+    def poll(self) -> list[str]:
+        out: list[str] = []
+        for p, row in self._read_new():
             if self.current != p:
                 self.current = p
                 out.append(f"── {p.stem} " + "─" * max(0, self.width + 20 - len(p.stem)))
-            for raw in data[:end].decode("utf-8").splitlines():
-                if raw.strip():
-                    row = json.loads(raw)
-                    line = render_row(row, self.width)
-                    out.append(_paint(row, line) if self.color else line)
+            line = render_row(row, self.width)
+            out.append(_paint(row, line) if self.color else line)
         return out
 
 

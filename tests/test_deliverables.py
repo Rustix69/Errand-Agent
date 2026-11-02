@@ -73,7 +73,7 @@ def test_three_bugs_each_with_the_five_fields_and_real_regression_tests():
         assert cited, e[:60]
         for path, name in cited:
             assert re.search(rf"^\s*(async )?def {name}\(", (ROOT / path).read_text(), re.M), (path, name)
-    assert len(re.split(r"(?m)^## ", (ROOT / "artifacts" / "bugs-other.md").read_text())[1:]) == 4
+    assert len(re.split(r"(?m)^## ", (ROOT / "artifacts" / "bugs-other.md").read_text())[1:]) == 5
 
 
 # ----------------------------------------------------------------------------- the README

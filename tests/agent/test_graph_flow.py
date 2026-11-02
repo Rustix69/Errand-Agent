@@ -258,3 +258,13 @@ def test_one_final_event_per_run_and_the_counter_matches(make_agent):
     to_pending(a)
     a.say("yes")
     assert Counter(a.names())["final"] == Counter(a.names())["run_start"] == 2
+
+
+def test_a_real_looking_options_reply_reaches_the_user_untouched_through_the_graph(make_agent):
+    """Regression (BUGS #3), end to end: the reply says "before anything is booked" and must get no note."""
+    text = ("Would you like me to propose a booking for one of these? You'll get a confirmation to approve before "
+            "anything is booked.")
+    a = make_agent([say(text)])
+    r = a.say("find me a plumber")
+    assert (r.status, r.kind, r.reason, r.message) == ("DONE", "answer", None, text)
+    assert [d["reason"] for d in a.of("final")] == [None] and a.env.count("book") == 0

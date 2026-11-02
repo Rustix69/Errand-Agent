@@ -101,7 +101,7 @@ class Poller:
         except (ToolError, BudgetExhausted) as e:
             rt.emit("poll_error", {"run_id": run_id, "type": type(e).__name__})
             return res
-        self._mark_replaced(run_id)
+        replaced = self._mark_replaced(run_id)
         for ev in store.all("SELECT * FROM proactive_events WHERE user_id = ? AND status = 'detected' ORDER BY id",
                             (rt.user_id,)):  # a previous poll died part-way: finish it, exactly once
             rt.emit("poll_resumed", {"run_id": run_id, "event_id": ev["id"]})
@@ -112,7 +112,7 @@ class Poller:
             if b.status == "cancelled_by_provider" and snaps.get(b.booking_id) != "cancelled_by_provider":
                 self._detect(run_id, session_id, b, read, res)
         self._snapshot(bookings)
-        rt.emit("poll_end", {"run_id": run_id, "handled": len(res.detected)})
+        rt.emit("poll_end", {"run_id": run_id, "handled": len(res.detected), "replaced": replaced})
         return res
 
     # ------------------------------------------------------------------ detection
@@ -248,7 +248,7 @@ class Poller:
                 if b.booking_id not in busy:
                     self._upsert_snapshot(c, b.model_dump(mode="json"))
 
-    def _mark_replaced(self, run_id: str) -> None:
+    def _mark_replaced(self, run_id: str) -> int:
         with self.store.tx() as c:
-            c.execute("UPDATE proactive_events SET status = 'replaced' WHERE status = 'notified' AND proposal_id IN "
-                      "(SELECT id FROM proposals WHERE status = 'executed')")
+            return c.execute("UPDATE proactive_events SET status = 'replaced' WHERE status = 'notified' AND proposal_id IN "
+                             "(SELECT id FROM proposals WHERE status = 'executed')").rowcount

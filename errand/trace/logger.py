@@ -30,6 +30,8 @@ from errand.trace.tools import SummarizingTools
 PRICES: dict[str, tuple[float, float]] = PRICE_TABLE
 
 SESSION_TRACE = "_session"
+POLL_PREFIX = "poll_"  # run ids of proactive polls
+_POLL_FLUSH = {"poll_detected", "poll_resumed", "poll_error"}  # the first sign that a poll found something
 _REDACT = frozenset({"api_key", "apikey", "authorization", "password", "secret", "token"})
 _PAIRS = {"tool_result": "tool_call", "tool_error": "tool_call", "execute_outcome": "execute_start"}
 
@@ -70,6 +72,8 @@ class TraceLogger:
         self._start: dict[str, float] = {}  # run -> monotonic time of its first event
         self._seq: dict[str, int] = {}
         self._open: dict[tuple[str | None, str, str], list[float]] = {}
+        self._held: dict[str, list[dict[str, Any]]] = {}  # poll run -> rows not written yet (see `_record`)
+        self._live_polls: set[str] = set()  # polls that already found something: their rows go straight to disk
         self._summaries: dict[str, dict[str, Any]] = {}  # tool -> summary of its latest successful result
 
     def note_result(self, tool: str, summary: dict[str, Any]) -> None:
@@ -118,10 +122,32 @@ class TraceLogger:
                 row["cost_estimated"] = True
         row["data"] = sanitize(body, self.cap)
 
-        line = json.dumps(row, ensure_ascii=False, sort_keys=True)
-        with path.open("a", encoding="utf-8") as f:
-            f.write(line + "\n")
+        if run and run.startswith(POLL_PREFIX) and run not in self._live_polls:
+            # A proactive poll runs every few seconds and usually finds nothing. Its rows are built as the events arrive
+            # (so latency and result summaries attach correctly) but only WRITTEN once the poll finds something.
+            held = self._held.setdefault(run, [])
+            row["seq"] = len(held)
+            held.append(row)
+            if name in _POLL_FLUSH or (name == "poll_end" and body.get("replaced")):
+                self._live_polls.add(run)
+                del self._held[run]
+                for r in held:
+                    self._append(path, r)
+                self._seq[key] = len(held)
+            elif name == "poll_end":  # a quiet poll: nothing handled, nothing to keep
+                del self._held[run]
+                self._start.pop(key, None)
+                self._seq.pop(key, None)
+                if self._current == run:
+                    self._current = None
+            return
+        self._append(path, row)
         self._seq[key] += 1  # only after a successful write
+
+    @staticmethod
+    def _append(path: Path, row: dict[str, Any]) -> None:
+        with path.open("a", encoding="utf-8") as f:
+            f.write(json.dumps(row, ensure_ascii=False, sort_keys=True) + "\n")
 
     def _cost(self, body: dict[str, Any]) -> float | None:
         price = self.prices.get(str(body.get("model")))

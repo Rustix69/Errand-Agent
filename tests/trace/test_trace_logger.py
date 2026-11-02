@@ -225,3 +225,60 @@ def test_model_call_cost_is_labelled_an_estimate_and_usage_records_what_the_api_
     assert synth["data"]["usage_source"] == "synthetic" and "cache_read_tokens" not in synth["data"]
     text = render(rows_of(tracer, r1.run_id))
     assert "~$" in text and " est " in text and " api " in text and "(estimate)" in text
+
+
+def _poll(t, run, *, found=None, replaced=0, note=None):
+    """The events a poll emits, in the order the real code emits them (the wrapper notes a summary between the
+    tool_call and the tool_result)."""
+    t("poll_start", {"run_id": run, "session_id": "s1"})
+    t("tool_call", {"tool": "list_bookings", "args": {"user_id": "u_demo"}})
+    if note:
+        t.note_result("list_bookings", note)
+    t("tool_result", {"tool": "list_bookings"})
+    if found:
+        t(found, {"run_id": run, "event_id": 1})
+    t("poll_end", {"run_id": run, "handled": 1 if found == "poll_detected" else 0, "replaced": replaced})
+
+
+def test_a_poll_that_found_nothing_writes_no_file_and_leaves_no_state_behind(tmp_path, clock):
+    t = TraceLogger(clock, tmp_path / "t")
+    _poll(t, "poll_000001", note={"n": 6})
+    assert not (t.dir / "poll_000001.jsonl").exists() and t._held == {} and t._current is None
+    # its summary was consumed by its own (dropped) tool_result, so it cannot leak into a later result
+    t("tool_call", {"run_id": "run_5", "tool": "list_bookings", "args": {}})
+    t("tool_result", {"run_id": "run_5", "tool": "list_bookings"})
+    (row,) = [r for r in read_trace(trace_path(t.dir, "run_5")) if r["event"] == "tool_result"]
+    assert "summary" not in row["data"]
+
+
+def test_a_poll_that_found_something_is_written_whole_with_contiguous_seq_and_its_summary(tmp_path, clock):
+    t = TraceLogger(clock, tmp_path / "t")
+    _poll(t, "poll_000002", found="poll_detected", note={"n": 6})
+    rows = read_trace(trace_path(t.dir, "poll_000002"))
+    assert [r["event"] for r in rows] == ["poll_start", "tool_call", "tool_result", "poll_detected", "poll_end"]
+    assert [r["seq"] for r in rows] == list(range(5)) and rows[2]["data"]["summary"] == {"n": 6}
+    assert rows[1]["t"] == 0 and all(r["run"] == "poll_000002" for r in rows)
+
+
+@pytest.mark.parametrize("flush_event", ["poll_resumed", "poll_error"])
+def test_resumed_and_failed_polls_are_written_too(tmp_path, clock, flush_event):
+    t = TraceLogger(clock, tmp_path / "t")
+    _poll(t, "poll_000003", found=flush_event)
+    assert [r["event"] for r in read_trace(trace_path(t.dir, "poll_000003"))][-2:] == [flush_event, "poll_end"]
+
+
+def test_a_poll_that_only_tidied_a_replaced_event_is_written_and_a_killed_one_keeps_its_rows(tmp_path, clock):
+    t = TraceLogger(clock, tmp_path / "t")
+    _poll(t, "poll_000004", replaced=1)
+    assert [r["event"] for r in read_trace(trace_path(t.dir, "poll_000004"))] == ["poll_start", "tool_call", "tool_result", "poll_end"]
+    t("poll_start", {"run_id": "poll_000005", "session_id": "s1"})  # killed right after detecting: no poll_end ever
+    t("poll_detected", {"run_id": "poll_000005", "event_id": 1})
+    t("poll_proposal", {"event_id": 1})
+    assert [r["event"] for r in read_trace(trace_path(t.dir, "poll_000005"))] == ["poll_start", "poll_detected", "poll_proposal"]
+
+
+def test_user_runs_are_never_deferred(tmp_path, clock):
+    t = TraceLogger(clock, tmp_path / "t")
+    t("run_start", {"run_id": "run_7", "session_id": "s1", "chars": 3})
+    assert [r["event"] for r in read_trace(trace_path(t.dir, "run_7"))] == ["run_start"]  # written at once
+

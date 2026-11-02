@@ -1,0 +1,23 @@
+{"data": {"chars": 3, "run_id": "run_000002", "session_id": "demo"}, "event": "run_start", "run": "run_000002", "seq": 0, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"approval_id": "apr_000001", "kind": "approved", "proposal_id": "prop_000001", "run_id": "run_000002"}, "event": "decision", "run": "run_000002", "seq": 1, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"exit_kind": null, "node": "ingest", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 2, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"node": "approval_gate", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 3, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"exit_kind": null, "node": "approval_gate", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 4, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"node": "execute", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 5, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"approval_id": "apr_000001"}, "event": "execute_start", "run": "run_000002", "seq": 6, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"args": {"hold_id": "hold_000001"}, "tool": "get_booking_status"}, "event": "tool_call", "run": "run_000002", "seq": 7, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"summary": {"hold_status": "active", "status": "not_booked"}, "tool": "get_booking_status"}, "event": "tool_result", "latency_s": 0.0, "run": "run_000002", "seq": 8, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"action": "book", "key": "book-apr_000001-0", "ref": "hold_000001", "seq": 0}, "event": "attempt_pending", "run": "run_000002", "seq": 9, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"args": {"hold_id": "hold_000001", "idempotency_key": "book-apr_000001-0"}, "tool": "book"}, "event": "tool_call", "run": "run_000002", "seq": 10, "t": 0.0, "ts": "2026-11-02T09:00:00.000+05:30"}
+{"data": {"code": "timeout", "retryable": true, "tool": "book"}, "event": "tool_error", "latency_s": 3.0, "run": "run_000002", "seq": 11, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"args": {"idempotency_key": "book-apr_000001-0"}, "tool": "get_booking_status"}, "event": "tool_call", "run": "run_000002", "seq": 12, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"summary": {"booking_id": "bk_000007", "hold_status": "booked", "status": "confirmed"}, "tool": "get_booking_status"}, "event": "tool_result", "latency_s": 0.0, "run": "run_000002", "seq": 13, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"key": "book-apr_000001-0"}, "event": "attempt_confirmed", "run": "run_000002", "seq": 14, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"approval_id": "apr_000001", "kind": "confirmed", "reason": null}, "event": "execute_outcome", "latency_s": 3.0, "run": "run_000002", "seq": 15, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"exit_kind": null, "node": "execute", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 3.0, "run": "run_000002", "seq": 16, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"node": "verify", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 17, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"booking_id": "bk_000007", "kind": "confirmed", "reason": null}, "event": "verified", "run": "run_000002", "seq": 18, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"exit_kind": "confirmed", "node": "verify", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 19, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"node": "respond", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 20, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"kind": "confirmed", "reason": null, "run_id": "run_000002", "status": "DONE", "waiting": null}, "event": "final", "run": "run_000002", "seq": 21, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"exit_kind": null, "node": "respond", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 22, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}

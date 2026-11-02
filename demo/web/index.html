@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Errand Agent</title>
+<link rel="stylesheet" href="/theme.css">
+<style>
+  /* Layout only. Every colour, font, border colour, radius and shadow comes from theme.css variables. */
+  :root { --gap: calc(var(--spacing) * 3); --pad: calc(var(--spacing) * 3); --bw: 2px; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; font-size: 1rem; line-height: 1.4; }
+  .mono { font-family: var(--font-mono); }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .skip { position: absolute; left: var(--pad); top: -4rem; z-index: 10; padding: var(--pad); background: var(--secondary);
+          color: var(--secondary-foreground); border: var(--bw) solid var(--border); font-weight: 700; }
+  .skip:focus { top: var(--pad); }
+
+  header.top { display: flex; align-items: center; gap: var(--gap); flex-wrap: wrap; padding: var(--pad) calc(var(--pad) * 1.5);
+               background: var(--primary); color: var(--primary-foreground); border-bottom: 3px solid var(--border); }
+  header.top h1 { margin: 0; font: 700 1.25rem var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em; }
+  header.top .grow { flex: 1; }
+
+  .pill { display: inline-block; padding: 0 calc(var(--spacing) * 2); border: var(--bw) solid var(--border); background: var(--muted);
+          color: var(--foreground); font: 700 0.7rem var(--font-mono); text-transform: uppercase; white-space: nowrap; vertical-align: middle; }
+  .pill.model  { background: var(--accent);    color: var(--accent-foreground); }
+  .pill.accent { background: var(--accent);    color: var(--accent-foreground); }
+  .pill.tool   { background: var(--secondary); color: var(--secondary-foreground); }
+  .pill.bad    { background: var(--primary);   color: var(--primary-foreground); }
+  .pill.ok     { background: var(--chart-4);   color: var(--secondary-foreground); }
+  .pill.poll   { background: var(--chart-5);   color: var(--secondary-foreground); }
+  .pill.node   { background: var(--muted);     color: var(--muted-foreground); }
+
+  main.main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr);
+              gap: var(--gap); padding: var(--gap); }
+  .chat, .panel { display: flex; flex-direction: column; min-height: 0; background: var(--card); color: var(--card-foreground);
+                  border: 3px solid var(--border); box-shadow: var(--shadow-md); }
+  .side { display: grid; grid-template-rows: minmax(0, 1fr) minmax(0, 1.3fr); gap: var(--gap); min-height: 0; min-width: 0; }
+  .panel h2 { margin: 0; padding: var(--pad); display: flex; align-items: center; gap: var(--gap); font: 700 0.9rem var(--font-mono);
+              text-transform: uppercase; background: var(--secondary); color: var(--secondary-foreground); border-bottom: var(--bw) solid var(--border); }
+  .list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+  .list li { padding: calc(var(--spacing) * 2) var(--pad); border-bottom: 1px solid var(--border); }
+  .empty { color: var(--muted-foreground); }
+
+  /* chat */
+  .log { flex: 1; min-height: 0; overflow-y: auto; padding: var(--pad); background: var(--muted); }
+  .messages { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--gap); }
+  .msg { display: flex; flex-direction: column; max-width: 82%; }
+  .msg.agent, .msg.notice { align-self: flex-start; align-items: flex-start; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.system { align-self: center; max-width: 100%; }
+  .meta { display: flex; align-items: baseline; gap: calc(var(--spacing) * 2); font: 0.75rem var(--font-mono); margin-bottom: var(--spacing); }
+  .sender { color: var(--primary); font-weight: 700; }
+  .time { color: var(--muted-foreground); }
+  .bubble { padding: calc(var(--spacing) * 2.5) var(--pad); border: var(--bw) solid var(--border); box-shadow: var(--shadow-sm);
+            white-space: pre-wrap; overflow-wrap: anywhere; }
+  .msg.agent .bubble, .msg.notice .bubble { background: var(--secondary); color: var(--secondary-foreground); }
+  .msg.user .bubble { background: var(--primary); color: var(--primary-foreground); }
+  .msg.notice .bubble { border-style: dashed; }
+  .tag { margin-top: var(--spacing); }
+  .sys { display: inline-block; padding: var(--spacing) calc(var(--spacing) * 2); border: 1px dashed var(--border); background: var(--card);
+         color: var(--muted-foreground); font: 0.75rem var(--font-mono); }
+
+  .typing { display: flex; gap: var(--spacing); padding: var(--pad) 0; }
+  .typing[hidden] { display: none; }
+  .typing span { width: 0.6rem; height: 0.6rem; background: var(--foreground); border: 1px solid var(--border); animation: dot 1s infinite ease-in-out; }
+  .typing span:nth-child(2) { animation-delay: 0.15s; }
+  .typing span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes dot { 0%, 80%, 100% { transform: translateY(0); } 40% { transform: translateY(-0.5rem); } }
+
+  /* approval card */
+  .approval { margin-top: var(--gap); }
+  .card { background: var(--card); color: var(--card-foreground); border: 3px solid var(--border); box-shadow: var(--shadow-md); max-width: 34rem; }
+  .card-h { margin: 0; padding: var(--pad); display: flex; gap: var(--gap); align-items: center; font: 700 0.9rem var(--font-mono);
+            text-transform: uppercase; background: var(--accent); color: var(--accent-foreground); }
+  .terms { margin: 0; padding: var(--pad); display: grid; grid-template-columns: max-content 1fr; gap: var(--spacing) var(--gap); }
+  .terms dt { font: 700 0.75rem var(--font-mono); text-transform: uppercase; color: var(--muted-foreground); align-self: center; }
+  .terms dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+  .terms .raw { display: block; font: 400 0.75rem var(--font-mono); color: var(--muted-foreground); }
+  .actions { display: flex; gap: var(--gap); padding: 0 var(--pad) var(--pad); flex-wrap: wrap; }
+  .note { margin: 0; padding: var(--pad); border-top: 1px solid var(--border); font-size: 0.8rem; color: var(--muted-foreground); }
+
+  /* buttons and the composer */
+  button { font: 700 0.9rem var(--font-sans); min-height: 44px; padding: 0 calc(var(--spacing) * 4); background: var(--card); color: var(--card-foreground);
+           border: var(--bw) solid var(--border); box-shadow: var(--shadow-xs); cursor: pointer; border-radius: var(--radius); }
+  button:hover:not(:disabled) { background: var(--secondary); color: var(--secondary-foreground); }
+  button:active:not(:disabled) { transform: translate(2px, 2px); box-shadow: none; }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  .btn.confirm { background: var(--primary); color: var(--primary-foreground); }
+  .btn.decline { background: var(--card); color: var(--card-foreground); }
+  .composer { display: flex; gap: var(--gap); align-items: center; padding: var(--pad); border-top: 3px solid var(--border); background: var(--card); }
+  .composer input { flex: 1; min-width: 0; min-height: 48px; padding: 0 var(--pad); font: 1rem var(--font-sans); background: var(--background);
+                    color: var(--foreground); border: var(--bw) solid var(--input); border-radius: var(--radius); }
+  button.send { width: 48px; height: 48px; min-height: 48px; padding: 0; border-radius: 50%; background: var(--primary); color: var(--primary-foreground);
+                display: inline-flex; align-items: center; justify-content: center; }
+  button.send:hover:not(:disabled) { background: var(--primary); color: var(--primary-foreground); }
+  button.send svg { width: 22px; height: 22px; fill: currentColor; }
+
+  /* bookings and trace */
+  .bk { display: flex; flex-direction: column; gap: var(--spacing); }
+  .bk .top { display: flex; justify-content: space-between; gap: var(--gap); font-weight: 700; }
+  .bk .sub { display: flex; gap: calc(var(--spacing) * 2); flex-wrap: wrap; align-items: center; color: var(--muted-foreground); font-size: 0.85rem; }
+  .tr { display: grid; grid-template-columns: auto 1fr auto; gap: calc(var(--spacing) * 2); align-items: baseline; font: 0.78rem var(--font-mono); }
+  .tr .txt { overflow-wrap: anywhere; }
+  .tr .lat { color: var(--muted-foreground); }
+
+  footer.strip { display: flex; flex-wrap: wrap; gap: var(--gap); align-items: center; padding: var(--gap); background: var(--sidebar);
+                 color: var(--sidebar-foreground); border-top: 3px solid var(--border); }
+  footer.strip .label { font: 700 0.75rem var(--font-mono); text-transform: uppercase; }
+  footer.strip .push { margin-left: auto; }
+  #toast { position: fixed; right: var(--gap); bottom: 5.5rem; max-width: 24rem; padding: var(--pad); background: var(--card); color: var(--card-foreground);
+           border: 3px solid var(--border); box-shadow: var(--shadow-md); font-weight: 700; }
+  #toast[hidden] { display: none; }
+
+  @media (max-width: 900px) {
+    body { height: auto; }
+    html, body { height: auto; }
+    main.main { grid-template-columns: 1fr; }
+    .chat { height: 72vh; }
+    .side { grid-template-rows: auto auto; }
+    .panel .list { max-height: 40vh; }
+    .msg { max-width: 92%; }
+    footer.strip .push { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#input">Skip to the message box</a>
+<header class="top">
+  <h1>Errand Agent</h1>
+  <span id="model" class="pill"></span>
+  <span class="grow"></span>
+  <span id="conn" class="pill node" role="status">connecting</span>
+</header>
+
+<main class="main">
+  <section class="chat" aria-labelledby="chat-h">
+    <h2 id="chat-h" class="visually-hidden">Chat</h2>
+    <div id="log" class="log" role="log" aria-live="polite" aria-relevant="additions" tabindex="0">
+      <ol id="messages" class="messages"></ol>
+      <div id="approval" class="approval"></div>
+      <div id="typing" class="typing" hidden role="status" aria-label="The agent is working"><span></span><span></span><span></span></div>
+    </div>
+    <form id="composer" class="composer" autocomplete="off">
+      <label class="visually-hidden" for="input">Message the agent</label>
+      <input id="input" type="text" maxlength="2000" placeholder="Find me a plumber for my kitchen tap this week…" autocomplete="off">
+      <button id="send" class="send" type="submit" aria-label="Send message">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21 23 12 2 3v7l15 2-15 2z"/></svg>
+      </button>
+    </form>
+  </section>
+
+  <aside class="side" aria-label="Activity">
+    <section class="panel" aria-labelledby="bk-h">
+      <h2 id="bk-h">My bookings <span id="bk-count" class="pill">0</span></h2>
+      <ul id="bookings" class="list"></ul>
+    </section>
+    <section class="panel" aria-labelledby="tr-h">
+      <h2 id="tr-h">Live trace <span id="tr-count" class="pill">0</span></h2>
+      <ul id="trace" class="list" tabindex="0"></ul>
+    </section>
+  </aside>
+</main>
+
+<footer class="strip">
+  <span class="label">Demo failures</span>
+  <button type="button" data-demo="timeout">Timeout after commit</button>
+  <button type="button" data-demo="price">Price +₹200</button>
+  <button type="button" data-demo="provider-cancel">Provider cancels</button>
+  <button type="button" data-demo="injection">Prompt injection</button>
+  <button type="button" id="theme" class="push" aria-pressed="false">Dark mode</button>
+</footer>
+<div id="toast" role="status" hidden></div>
+<noscript>This page needs JavaScript to talk to the agent.</noscript>
+
+<script>
+"use strict";
+// Everything dynamic goes in as plain text (textContent), never as markup.
+const $ = (s) => document.querySelector(s);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined && text !== null) e.textContent = text;
+  return e;
+};
+const hhmm = (iso) => { const d = new Date(iso); return isNaN(d) ? "" : d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+const rupees = (n) => "₹" + new Intl.NumberFormat("en-IN").format(n);
+const prettySlot = (s) => {
+  const d = new Date(s + ":00");
+  return isNaN(d) ? s : d.toLocaleString([], { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+};
+const words = (s) => String(s).replace(/_/g, " ");
+
+let lastId = 0, pending = null, sending = false, serverBusy = false, trCount = 0;
+const seen = new Set();
+
+async function api(path, body) {
+  const opt = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const r = await fetch(path, opt);
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = typeof data.detail === "string" ? data.detail : "That request was refused.";
+    throw Object.assign(new Error(msg), { status: r.status });
+  }
+  return data;
+}
+
+function toast(text) {
+  const t = $("#toast");
+  t.textContent = text;
+  t.hidden = false;
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.hidden = true; }, 5000);
+}
+
+function atBottom(node) { return node.scrollHeight - node.scrollTop - node.clientHeight < 48; }
+
+// ---- chat -------------------------------------------------------------------------------------
+function addChat(m) {
+  const log = $("#log"), stick = atBottom(log);
+  const li = el("li", "msg " + m.role);
+  if (m.role === "system") {
+    li.append(el("span", "sys", m.text));
+  } else {
+    const meta = el("div", "meta");
+    if (m.role !== "user") meta.append(el("span", "sender", "Errand Agent"));
+    if (m.role === "notice") meta.append(el("span", "pill accent", "notice"));
+    const time = el("time", "time", hhmm(m.at));
+    time.dateTime = m.at || "";
+    meta.append(time);
+    li.append(meta, el("div", "bubble", m.text));
+    if (m.status) {
+      const cls = m.status === "DONE" ? "ok" : m.status === "NEEDS_INPUT" ? "tool" : "bad";
+      li.append(el("span", "pill tag " + cls, m.status + " · " + words(m.kind || "")));
+    }
+  }
+  $("#messages").append(li);
+  if (stick || m.role === "user") log.scrollTop = log.scrollHeight;
+}
+
+function renderApproval() {
+  const box = $("#approval");
+  box.replaceChildren();
+  if (!pending) return;
+  const p = pending;
+  const card = el("section", "card");
+  card.setAttribute("aria-labelledby", "approve-h");
+  const head = el("h3", "card-h", "Approve this?");
+  head.id = "approve-h";
+  if (p.expired) head.append(el("span", "pill bad", "expired"));
+  const dl = el("dl", "terms");
+  const row = (label, value, raw) => {
+    dl.append(el("dt", null, label));
+    const dd = el("dd", null, value);
+    if (raw) dd.append(el("span", "raw", raw));
+    dl.append(dd);
+  };
+  row("Action", { book: "Book", cancel: "Cancel", reschedule: "Reschedule" }[p.action] || p.action);
+  row("Provider", p.provider_name ? p.provider_name + " (" + p.provider_id + ")" : p.provider_id);
+  if (p.action === "reschedule") { row("Now", prettySlot(p.slot), p.slot); row("Move to", prettySlot(p.new_slot), p.new_slot); }
+  else row("Slot", prettySlot(p.slot), p.slot);
+  if (p.booking_id) row("Booking", p.booking_id);
+  row("Price", rupees(p.price));
+  const actions = el("div", "actions");
+  const yes = el("button", "btn confirm", "Confirm");
+  const no = el("button", "btn decline", "Decline");
+  yes.type = no.type = "button";
+  yes.disabled = no.disabled = sending || serverBusy || p.expired;
+  yes.addEventListener("click", () => send(p.confirm_text));  // just a chat message, like typing it
+  no.addEventListener("click", () => send(p.decline_text));
+  actions.append(yes, no);
+  const note = el("p", "note", "Confirm sends “" + p.confirm_text + "” as your message and Decline sends “" + p.decline_text +
+    "”. The approval guard decides from that message; this page cannot book anything.");
+  card.append(head, dl, actions, note);
+  box.append(card);
+  if (atBottom($("#log"))) $("#log").scrollTop = $("#log").scrollHeight;
+}
+
+function updateTyping() {
+  $("#typing").hidden = !(sending || serverBusy);
+  $("#send").disabled = sending;
+  if (!$("#typing").hidden) $("#log").scrollTop = $("#log").scrollHeight;
+  renderApproval();
+}
+
+// ---- bookings and trace -----------------------------------------------------------------------
+const STATUS = { confirmed: ["accent", "confirmed"], completed: ["node", "completed"], cancelled: ["node", "cancelled"],
+                 cancelled_by_provider: ["bad", "cancelled by provider"] };
+function renderBookings(list) {
+  const ul = $("#bookings");
+  ul.replaceChildren();
+  $("#bk-count").textContent = list.length;
+  if (!list.length) { ul.append(el("li", "empty", "No bookings.")); return; }
+  const up = list.filter((b) => b.is_upcoming).sort((a, b) => a.slot.localeCompare(b.slot));
+  const past = list.filter((b) => !b.is_upcoming).sort((a, b) => b.slot.localeCompare(a.slot));
+  for (const b of [...up, ...past]) {
+    const li = el("li");
+    const wrap = el("div", "bk");
+    const top = el("div", "top");
+    top.append(el("span", null, b.provider_name), el("span", "mono", rupees(b.price)));
+    const sub = el("div", "sub");
+    const [cls, label] = STATUS[b.status] || ["node", words(b.status)];
+    sub.append(el("span", null, words(b.service) + " · " + prettySlot(b.slot)), el("span", "pill " + cls, label),
+               el("span", "pill " + (b.is_upcoming ? "tool" : "node"), b.is_upcoming ? "upcoming" : "past"));
+    wrap.append(top, sub);
+    li.append(wrap);
+    ul.append(li);
+  }
+}
+
+function addTrace(r) {
+  const ul = $("#trace"), stick = atBottom(ul);
+  const li = el("li", "tr");
+  li.append(el("span", "pill " + r.cls, r.event), el("span", "txt", r.text), el("span", "lat", r.latency_s ? r.latency_s.toFixed(2) + "s" : ""));
+  ul.append(li);
+  while (ul.children.length > 250) ul.firstChild.remove();
+  $("#tr-count").textContent = ++trCount;
+  if (stick) ul.scrollTop = ul.scrollHeight;
+}
+
+// ---- events from the server ---------------------------------------------------------------------
+function handleEvents(events) {
+  for (const ev of events || []) {
+    if (seen.has(ev.id)) continue;
+    seen.add(ev.id);
+    lastId = Math.max(lastId, ev.id);
+    const d = ev.data;
+    if (ev.type === "chat") addChat({ ...d, at: ev.at });
+    else if (ev.type === "trace") addTrace(d);
+    else if (ev.type === "state") { pending = d.pending; renderApproval(); }
+    else if (ev.type === "bookings") renderBookings(d.bookings);
+    else if (ev.type === "error") toast(d.text);
+  }
+}
+
+async function pollLoop() {
+  for (;;) {
+    try {
+      const r = await api("/api/log?since=" + lastId);
+      handleEvents(r.events);
+      if (serverBusy !== r.busy) { serverBusy = r.busy; updateTyping(); }
+      setConn(true);
+    } catch (e) { setConn(false); }
+    await new Promise((res) => setTimeout(res, 1000));
+  }
+}
+
+function setConn(ok) {
+  const c = $("#conn");
+  c.textContent = ok ? "live" : "reconnecting";
+  c.className = "pill " + (ok ? "ok" : "bad");
+}
+
+// ---- sending: the ONLY thing the page does with user text is post it to the chat endpoint ----------
+async function send(text) {
+  text = text.trim();
+  if (!text || sending) return;
+  sending = true; updateTyping();
+  try {
+    const r = await api("/api/message", { text });
+    handleEvents(r.events);
+  } catch (e) { toast(e.message); }
+  finally { sending = false; updateTyping(); }
+}
+
+$("#composer").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = $("#input"), text = input.value;
+  input.value = "";
+  send(text);
+});
+
+const DEMO = { timeout: { when: "after" }, price: { delta: 200 }, "provider-cancel": { target: "cleaning" }, injection: {} };
+for (const b of document.querySelectorAll("[data-demo]")) {
+  b.addEventListener("click", async () => {
+    const name = b.dataset.demo;
+    if (name === "injection") { sending = true; updateTyping(); }
+    try { handleEvents((await api("/api/demo/" + name, DEMO[name])).events); }
+    catch (e) { toast(e.message); }
+    finally { if (name === "injection") { sending = false; updateTyping(); } }
+  });
+}
+
+// ---- keyboard and theme ----------------------------------------------------------------------------
+document.addEventListener("keydown", (e) => {
+  const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+  if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey) { e.preventDefault(); $("#input").focus(); }
+  else if (e.key === "Escape" && document.activeElement === $("#input")) { $("#input").value = ""; $("#input").blur(); }
+});
+
+const themeBtn = $("#theme");
+function applyTheme(dark) {
+  document.documentElement.classList.toggle("dark", dark);
+  themeBtn.setAttribute("aria-pressed", String(dark));
+  try { localStorage.setItem("errand-theme", dark ? "dark" : "light"); } catch (e) { /* private mode */ }
+}
+let saved = null;
+try { saved = localStorage.getItem("errand-theme"); } catch (e) { /* ignore */ }
+applyTheme(saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches);
+themeBtn.addEventListener("click", () => applyTheme(!document.documentElement.classList.contains("dark")));
+
+// ---- start --------------------------------------------------------------------------------------------
+(async function start() {
+  try {
+    const b = await api("/api/bootstrap");
+    $("#model").textContent = b.state.model + " · " + (b.state.mode === "seeded" ? "random failures" : "no random failures");
+    for (const m of b.history) addChat(m);
+    renderBookings(b.bookings);
+    for (const t of b.trace) { seen.add(t.id); addTrace(t); }
+    pending = b.state.pending; serverBusy = b.state.busy;
+    lastId = b.last_id;
+    updateTyping();
+    $("#log").scrollTop = $("#log").scrollHeight;
+  } catch (e) { toast("Could not load the conversation: " + e.message); }
+  pollLoop();
+  $("#input").focus();
+})();
+</script>
+</body>
+</html>

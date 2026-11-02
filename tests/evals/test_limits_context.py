@@ -50,9 +50,9 @@ def test_l3_wall_clock_limit(scenario, clock):
 
 
 def test_c1_context_budget_trims_memories_and_never_exceeds_it(scenario):
-    budget = 1700
+    budget = 1800
     run = scenario(
-        "C1", "Context budget 1,700 tokens, seeded user (56 memories, 84 prior turns), 3 messages",
+        "C1", "Context budget 1,800 tokens, seeded user (56 memories, 84 prior turns), 3 messages",
         "every request <= budget; some relevant memories dropped and logged; no forbidden/irrelevant id ever sent",
         [lambda r: search("plumber", "HSR Layout"), say("Options listed."), say("Noted."), say("Fine.")],
         ["find me a plumber for my kitchen tap this week, mornings only, under 1500", "thanks", "and one more thing"],

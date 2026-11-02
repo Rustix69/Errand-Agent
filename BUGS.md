@@ -1,7 +1,7 @@
 # Bugs hit while building
 
 Three real bugs, each fixed and guarded by a regression test that fails without the fix (checked by reverting the fix
-and watching the test fail). Four others were logged as they happened and are kept in `artifacts/bugs-other.md`.
+and watching the test fail). Five others were logged as they happened and are kept in `artifacts/bugs-other.md`.
 The numbers in parentheses are the order they were found in.
 
 ## 1. A confirmed attempt kept a stale `hold_expired` error code (found 3rd, phase 2, executor)
@@ -20,10 +20,10 @@ The numbers in parentheses are the order they were found in.
 - **Regression test:** `tests/agent/test_tools_and_untrusted.py::test_each_propose_tool_maps_to_the_action_the_guard_understands` (added after the fact, because the first guard was only that every propose test in `tests/agent/test_graph_flow.py` failed).
 - **How it was found:** by the first graph test, which failed immediately. It was caught by my own test run, never by a user, and it blocked the whole propose flow rather than corrupting anything.
 
-## 3. After a re-quote the reply pointed at the OLD proposal (found 5th, phase 3, finalize)
+## 3. The "nothing was booked" note was appended to a harmless options reply (found 8th, phase 9b, finalize)
 
-- **What broke:** When the executor returned `needs_reapproval` with a fresh proposal (the replacement hold cost one rupee more), `Reply.proposal_id` still carried the id of the old, invalidated proposal while the message and the pending state showed the new one. A client or trace keyed on `Reply.proposal_id` would have tracked the wrong proposal. The booking itself was never affected.
-- **Why:** `finalize` copied `Exit.proposal_id` (the proposal that was executed) into `Final.proposal_id`, but for a request for approval the relevant id is the new proposal's.
-- **Fix:** `finalize` uses the new proposal's id whenever it is asking for approval.
-- **Regression test:** `tests/agent/test_graph_flow.py::test_changed_quote_after_approval_asks_again_and_book_is_not_called`.
-- **How it was found:** by a test I wrote for the changed-quote-after-approval flow. Its check that the proposal the reply points at is the re-quote (it must have a parent proposal) failed, because the reply pointed at the original one. I fixed `finalize`, then reverted the fix once to confirm the test fails without it. The same test also failed once for a mistake of my own (`a.state()` instead of `a.agent.state()`), which was not a product bug and is not logged.
+- **What broke:** Running the real model (claude-sonnet-5-5) through the web UI, an options reply ended with "You'll get a confirmation to approve before anything is booked." The unverified-claim guard fired, appended "(Nothing was booked, cancelled or changed in this step. Only a verified result counts.)" to a perfectly good reply, and recorded it with reason `unverified_claim`. No claim had been made; the note was a false alarm and the trace said a claim was caught.
+- **Why:** The guard (added in step 6) searched model text for the bare words booked / cancelled / rescheduled / confirmed, so future ("before anything is booked"), conditional, negated ("nothing is booked") and noun uses ("booked slots") all counted as claims.
+- **Fix:** `claims_completed_action` in `errand/agent/finalize.py` counts only first-person completed claims ("I've booked it") and the finished state of the user's own booking ("your booking is confirmed", "It's booked", "Booked!"), and ignores a match that has a hedge word (before, once, if, will, can't, nothing ...) earlier in its sentence. A hedge after a real claim does not cancel it.
+- **Regression tests:** `tests/agent/test_finalize.py::test_a_harmless_options_reply_gets_no_note_even_though_it_says_booked_in_the_future` (the exact sentence and the whole reply from the run), `tests/agent/test_finalize.py::test_future_conditional_negated_and_descriptive_wording_is_not_a_claim` and `tests/agent/test_graph_flow.py::test_a_real_looking_options_reply_reaches_the_user_untouched_through_the_graph`. Scenario S3 (`tests/evals/test_safety.py::test_s3_a_model_claiming_it_booked_changes_nothing`) still covers the true positive. Restoring the old regex makes 13 of these fail.
+- **How it was found:** by running the real model through the web UI and reading its reply. No automated test could have shown it: scripted replies are written by me, and the only guard test (S3) used a clear positive. I added the guard in step 6 with a deliberately broad pattern, on the reasoning that appending a note is harmless, and never tested the false-positive side. The note is only ever appended, never a replacement, so no information was lost. Known limit that remains: a harmless description of an existing booking worded "your booking is confirmed" is still flagged, since the guard cannot tell it from a false claim.

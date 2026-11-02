@@ -234,6 +234,21 @@ def open_demo(settings: Settings, model: ModelClient, data_dir: str | Path, *, c
     return app, demo
 
 
+def prepare(data_dir: Path, *, fresh: bool, random: bool, session: str, clock: Clock, model: ModelClient | None = None,
+            env_file: Path | None = PROJECT_ROOT / ".env") -> tuple[Settings, App, DemoWorld]:
+    """Settings (python-dotenv; the key is never read or printed by us), the model, the `--fresh` safety rule and the
+    whole app. Raises ConfigError with one clear line. Shared by the CLI and the web server."""
+    settings = Settings.load(env_file)
+    if model is None:
+        model = AnthropicClient.from_settings(settings)
+    if fresh and data_dir.exists():
+        if not (data_dir / MARKER).exists():
+            raise ConfigError(f"refusing to wipe {data_dir}: it was not created by this tool")
+        shutil.rmtree(data_dir)
+    app, demo = open_demo(settings, model, data_dir, clock=clock, random=random, session=session)
+    return settings, app, demo
+
+
 def main(argv: list[str] | None = None, *, model: ModelClient | None = None, input_fn: Callable[[str], str] = input,
          out: Callable[[str], None] = print, clock: Clock | None = None, env_file: Path | None = PROJECT_ROOT / ".env") -> int:
     ap = argparse.ArgumentParser(prog="python -m demo", description="Chat with the errand agent in a terminal.")
@@ -247,20 +262,13 @@ def main(argv: list[str] | None = None, *, model: ModelClient | None = None, inp
     a = ap.parse_args(argv)
 
     data_dir = Path(a.data_dir)
+    fake = FakeClock() if (a.fake_clock and clock is None) else None
     try:
-        settings = Settings.load(env_file)  # python-dotenv; the key is never read or printed by us
-        if model is None:
-            model = AnthropicClient.from_settings(settings)
-        if a.fresh and data_dir.exists():
-            if not (data_dir / MARKER).exists():
-                raise ConfigError(f"refusing to wipe {data_dir}: it was not created by this tool")
-            shutil.rmtree(data_dir)
+        settings, app, demo = prepare(data_dir, fresh=a.fresh, random=a.random, session=a.session,
+                                      clock=clock or fake or SystemClock(), model=model, env_file=env_file)
     except ConfigError as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
-
-    fake = FakeClock() if (a.fake_clock and clock is None) else None
-    app, demo = open_demo(settings, model, data_dir, clock=clock or fake or SystemClock(), random=a.random, session=a.session)
     chat = Chat(app, demo, out, color=sys.stdout.isatty() and not a.no_color, fake_clock=fake or (clock if isinstance(clock, FakeClock) else None))
     try:
         chat.banner(data_dir / "traces")
