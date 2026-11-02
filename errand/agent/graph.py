@@ -25,7 +25,7 @@ from langgraph.types import interrupt
 from errand.agent.finalize import Exit, finalize
 from errand.agent.context import ContextOverflow
 from errand.agent.state import ErrandState
-from errand.agent.tools import ToolRouter
+from errand.agent.tools import PROPOSE_TOOLS, READ_TOOLS, ToolRouter
 from errand.contract.errors import ErrorCode, ToolError
 from errand.core import BudgetExhausted, Reader
 from errand.memory.commands import PROFILE_TAGS, capture, parse
@@ -33,6 +33,10 @@ from errand.model.base import Message
 
 _CANT_HOLD = (ErrorCode.SLOT_UNAVAILABLE, ErrorCode.PROVIDER_NOT_FOUND, ErrorCode.INVALID_ARGUMENT)
 _SUCCESS = ("confirmed", "already_done")
+_IGNORED_PROPOSAL = json.dumps({
+    "error": "proposal_ignored",
+    "message": "You proposed in the same turn as read calls, before you had their results. A proposal is only accepted "
+               "once you have seen the results of every read you asked for. The results are above: decide again now."})
 
 
 def _jsonable(obj: Any) -> Any:
@@ -180,11 +184,19 @@ def build_graph(rt: Any) -> StateGraph:
                 if not turn.tool_calls:
                     return out(Exit("answer", text=turn.text))
                 run_msgs.append(Message("assistant", turn.text or "", tuple(turn.tool_calls)))
+                reads_unseen = any(c.name in READ_TOOLS for c in turn.tool_calls)
                 for i, c in enumerate(turn.tool_calls):
+                    if c.name in PROPOSE_TOOLS and reads_unseen:
+                        # A proposal is honoured only when the model has SEEN the results of every read it asked for.
+                        # Run the reads, ignore the proposal (visibly), and let the model decide on its next turn.
+                        rt.emit("tool_call_ignored", {"run_id": run_id, "tool": c.name, "reason": "read_results_unseen"})
+                        run_msgs.append(Message("tool", _IGNORED_PROPOSAL, tool_call_id=c.id, name=c.name))
+                        continue
                     res = router.run(c)
                     if res.kind in ("propose", "ask"):
                         for skipped in turn.tool_calls[i + 1:]:
-                            rt.emit("tool_call_ignored", {"tool": skipped.name})
+                            rt.emit("tool_call_ignored", {"run_id": run_id, "tool": skipped.name,
+                                                          "reason": f"turn_ended_by_{res.kind}"})
                         if res.kind == "ask":
                             request.update({k: v for k, v in res.request_update.items() if v is not None})
                             for k, v in res.request_update.items():
@@ -275,7 +287,12 @@ def build_graph(rt: Any) -> StateGraph:
         booking = o.get("booking") if kind in _SUCCESS else None
         rt.emit("verified", {"kind": kind, "reason": o.get("reason"),
                              "booking_id": booking.get("booking_id") if isinstance(booking, dict) else None})
-        return {"pending": pending, "exit": asdict(Exit(
+        fresh: dict[str, Any] = {}
+        if kind in _SUCCESS:  # the errand is finished: its request and search options must not leak into the next one
+            rt.emit("search_state_cleared", {"run_id": state["run_id"], "request_keys": sorted(state.get("request") or {}),
+                                             "options": len(state.get("options") or [])})
+            fresh = {"request": {}, "options": []}
+        return {"pending": pending, **fresh, "exit": asdict(Exit(
             kind, o.get("reason"), action, o.get("booking") if kind in _SUCCESS else None, o.get("diff"),
             proposal, o.get("proposal_id"),
         ))}

@@ -16,6 +16,14 @@ These were real and fixed, each with a regression test, but are not part of the 
 - **Fix:** Seed conflicts are stored in `world_meta.seed_conflicts` and merged at lookup time by `MockWorld.conflict_slots()`, still gated by `seed_default_conflicts`.
 - **Regression test:** `tests/mocks/test_cancel_reschedule_list.py::test_seeded_conflict_survives_reopen_with_new_config`
 
+## 4. `propose_booking` reached the graph with the wrong action name (phase 3, graph)
+
+- **What broke:** The first graph test I ran ended in `TOOL_FAILURE` with a `KeyError` in the `hold` node. The router turned the tool name `propose_booking` into the action `"booking"` with `removeprefix("propose_")`, but the guard and the `proposals` table use `"book"`. No proposal was ever created.
+- **Why:** The action vocabulary (`book | cancel | reschedule`) and the tool names (`propose_booking | propose_cancel | propose_reschedule`) are different words, and the code derived one from the other by string surgery.
+- **Fix:** an explicit `_ACTION` map in `errand/agent/tools.py`.
+- **Regression test:** `tests/agent/test_tools_and_untrusted.py::test_each_propose_tool_maps_to_the_action_the_guard_understands` (added after the fact, because the first guard was only that every propose test in `tests/agent/test_graph_flow.py` failed).
+- **How it was found:** by the first graph test, which failed immediately. It was caught by my own test run, never by a user, and it blocked the whole propose flow rather than corrupting anything.
+
 ## 5. After a re-quote the reply pointed at the OLD proposal (phase 3, finalize)
 
 - **What broke:** When the executor returned `needs_reapproval` with a fresh proposal (the replacement hold cost one rupee more), `Reply.proposal_id` still carried the id of the old, invalidated proposal while the message and the pending state showed the new one. A client or trace keyed on `Reply.proposal_id` would have tracked the wrong proposal. The booking itself was never affected.

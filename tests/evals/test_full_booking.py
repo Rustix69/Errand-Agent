@@ -40,6 +40,7 @@ def test_find_me_a_plumber_to_confirmed(make_agent, eval_case):
     r2 = a.say("Indiranagar, mornings this week, under 1500")
     r3 = a.say("go with the first one")
     model_calls_before_yes = a.model.calls
+    kept_until_approval = a.agent.state()["request"]  # the collected details are kept while the errand is open ...
     r4 = a.say("yes")
 
     # ---- actual, from DB state and events ---------------------------------------------------------
@@ -57,7 +58,8 @@ def test_find_me_a_plumber_to_confirmed(make_agent, eval_case):
     # ---- conversation: only missing details were asked, nothing was re-asked ----------------------
     assert [d["missing"] for d in a.of("ask_user")] == [["area", "date_range"]]
     assert (r1.status, r1.waiting) == ("NEEDS_INPUT", "input")
-    assert a.agent.state()["request"] == {"service": "plumber", "area": "Indiranagar", "date_range": WEEK}
+    assert kept_until_approval == {"service": "plumber", "area": "Indiranagar", "date_range": WEEK}
+    assert a.agent.state()["request"] == {} and a.agent.state()["options"] == []  # ... and cleared once it is confirmed
     assert (r2.status, r2.kind) == ("DONE", "answer")
 
     # ---- proposal: created by code from the hold's quoted price, then approved by code ------------

@@ -261,7 +261,7 @@ def test_one_final_event_per_run_and_the_counter_matches(make_agent):
 
 
 def test_a_real_looking_options_reply_reaches_the_user_untouched_through_the_graph(make_agent):
-    """Regression (BUGS #3), end to end: the reply says "before anything is booked" and must get no note."""
+    """Regression (BUGS #2), end to end: the reply says "before anything is booked" and must get no note."""
     text = ("Would you like me to propose a booking for one of these? You'll get a confirmation to approve before "
             "anything is booked.")
     a = make_agent([say(text)])

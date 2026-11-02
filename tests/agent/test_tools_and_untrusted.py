@@ -49,7 +49,7 @@ def test_router_refuses_anything_outside_the_list_and_calls_nothing(env, name):
     ("propose_reschedule", {"booking_id": "bk_000001", "slot": "2026-11-04T10:00"}, "reschedule"),
 ])
 def test_each_propose_tool_maps_to_the_action_the_guard_understands(env, tool, args, action):
-    """Regression (BUGS #4): the tool name `propose_booking` once produced the action "booking" instead of "book",
+    """Regression (artifacts/bugs-other.md #4): the tool name `propose_booking` once produced the action "booking" instead of "book",
     so no proposal could be created. The router's action must be one of the guard's action words, exactly."""
     from errand.agent.tools import PROPOSE_TOOLS
 

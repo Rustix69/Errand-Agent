@@ -60,7 +60,7 @@ def test_e3_same_electrician_as_last_time_not_before_10(scenario):
         past = [b for b in tool_json(request, "list_bookings")["bookings"]
                 if b["service"] == "electrician" and not b["is_upcoming"] and b["status"] == "completed"]
         last = max(past, key=lambda b: b["slot"])
-        # the saved memory must agree with the marketplace's own history (BUGS #7)
+        # the saved memory must agree with the marketplace's own history (artifacts/bugs-other.md #7)
         assert last["provider_id"] in remembered(request, "electrician_preferred")
         return pick(provider=last["provider_id"], min_time="10:00", from_state=True)(request)
 

@@ -52,7 +52,7 @@ MAX_TEXT = 2000
 # trace event -> the colour class the page gives its pill (theme tokens only: see index.html)
 _BAD = {"tool_error", "limit_reached", "tool_refused", "tool_invalid", "approval_invalid", "attempt_failed",
         "understand_error", "hold_failed", "poll_error", "executor_exception", "verify_downgrade", "untrusted_scan",
-        "memory_error", "turn_log_error", "model_setting_fallback", "known_dropped"}
+        "memory_error", "turn_log_error", "model_setting_fallback", "known_dropped", "tool_call_ignored"}
 _OK = {"decision", "attempt_pending", "attempt_confirmed", "execute_start", "execute_outcome", "verified",
        "approval_rebound", "proposal_created", "propose_requested", "startup_recovery", "recovery_resolved"}
 _POLL = {"poll_start", "poll_end", "poll_detected", "poll_decision", "poll_proposal", "poll_resumed", "poll_limit",

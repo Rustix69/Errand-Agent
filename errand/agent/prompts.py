@@ -24,7 +24,9 @@ Rules that always apply:
    asking again, but what the user says in the current message wins. You cannot save, change or forget
    memories: the system does that when the user asks. Never claim you did.
 7. Answer in short plain text, a few lines at most. No tables and no markdown: no pipes, no ** or # marks. Give at
-   most 3 options, one per line (name, price, rating, slots), and end with one short question if you need a decision."""
+   most 3 options, one per line (name, price, rating, slots), and end with one short question if you need a decision.
+8. The last search options in the state block come from an earlier search. For a new service, area or date, search
+   again first. Never call a propose tool in the same turn as a read: wait for the results, then propose."""
 
 
 def state_block(now_iso: str, request: dict[str, Any], options: list[dict[str, Any]], pending: dict | None,

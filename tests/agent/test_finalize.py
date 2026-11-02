@@ -58,7 +58,7 @@ def test_limit_messages_name_the_limit():
         assert word in finalize(Exit("limit", reason=reason)).message
 
 
-# ----------------------------------------------------------------------------- the unverified-claim guard (BUGS #3)
+# ----------------------------------------------------------------------------- the unverified-claim guard (BUGS #2)
 
 OPTIONS_REPLY = """Morning slots from 10:00 (I read "morning" as 10:00 to 12:00), within ₹1,500:
 
@@ -81,7 +81,7 @@ EXACT = ("Would you like me to propose a booking for one of these? You'll get a 
 
 
 def test_a_harmless_options_reply_gets_no_note_even_though_it_says_booked_in_the_future():
-    """Regression (BUGS #3): the real model wrote "before anything is booked" and the note "Nothing was booked,
+    """Regression (BUGS #2): the real model wrote "before anything is booked" and the note "Nothing was booked,
     cancelled or changed" was appended, with reason unverified_claim."""
     for text in (EXACT, OPTIONS_REPLY):
         f = finalize(Exit("answer", text=text))

@@ -17,7 +17,8 @@
 {"data": {"exit_kind": null, "node": "execute", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 3.0, "run": "run_000002", "seq": 16, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
 {"data": {"node": "verify", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 17, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
 {"data": {"booking_id": "bk_000007", "kind": "confirmed", "reason": null}, "event": "verified", "run": "run_000002", "seq": 18, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
-{"data": {"exit_kind": "confirmed", "node": "verify", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 19, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
-{"data": {"node": "respond", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 20, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
-{"data": {"kind": "confirmed", "reason": null, "run_id": "run_000002", "status": "DONE", "waiting": null}, "event": "final", "run": "run_000002", "seq": 21, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
-{"data": {"exit_kind": null, "node": "respond", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 22, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"options": 4, "request_keys": ["area", "date_range", "service"], "run_id": "run_000002"}, "event": "search_state_cleared", "run": "run_000002", "seq": 19, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"exit_kind": "confirmed", "node": "verify", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 20, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"node": "respond", "run_id": "run_000002"}, "event": "node_enter", "run": "run_000002", "seq": 21, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"kind": "confirmed", "reason": null, "run_id": "run_000002", "status": "DONE", "waiting": null}, "event": "final", "run": "run_000002", "seq": 22, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}
+{"data": {"exit_kind": null, "node": "respond", "run_id": "run_000002", "waiting": null}, "event": "node_exit", "latency_s": 0.0, "run": "run_000002", "seq": 23, "t": 3.0, "ts": "2026-11-02T09:00:03.000+05:30"}

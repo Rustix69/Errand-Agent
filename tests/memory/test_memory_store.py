@@ -118,7 +118,7 @@ def test_forbidden_values_cover_forgotten_guesses_and_replaced_but_not_current(s
 
 
 def test_seeded_electrician_memory_matches_the_booking_history(seeded):
-    """Regression (BUGS #7): a seeded memory must agree with what the marketplace says."""
+    """Regression (artifacts/bugs-other.md #7): a seeded memory must agree with what the marketplace says."""
     from errand.clock import FakeClock
     from errand.mocks import DEMO_USER_ID, MockWorld, ScenarioConfig
     from errand.wiring import tools_for
