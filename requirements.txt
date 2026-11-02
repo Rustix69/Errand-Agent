@@ -1,0 +1,8 @@
+anthropic
+langgraph
+langgraph-checkpoint-sqlite
+pydantic
+pytest
+python-dotenv
+fastapi
+uvicorn
