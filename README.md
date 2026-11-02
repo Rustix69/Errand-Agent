@@ -7,6 +7,25 @@ and recovers safely from tool failures. Everything runs locally: no real provide
 Safety is structural, not prompt-based: the model can only read and *propose*. Deterministic code decides approval and
 is the only thing that can book, cancel or reschedule. [`DESIGN.md`](DESIGN.md) explains how.
 
+## System design
+
+For the full write-up (state model, approval enforcement, idempotency and recovery, memory, observability and the
+trade-offs) read [`DESIGN.md`](DESIGN.md). The two diagrams below are the quickest way in.
+
+**Architecture.** The web page sends user text only through `POST /api/message`, and the LangGraph flow behind it asks
+the model (7 tools: read, propose, ask) while a plain-code safety core (`ApprovalGuard`, the idempotent executor and
+startup recovery) is the only thing that can call `book`, `cancel` or `reschedule` on the mock marketplace. State lives
+in three places: `agent.db` (proposals, approvals, attempts, memories), `checkpoints.db` (graph state) and one trace file
+per run.
+
+![System design: web page, FastAPI server, agent with its safety core, model, storage and mock marketplace](public/system-design.png)
+
+**One booking, step by step.** The model only proposes (`propose_booking`), the card shows the exact provider, slot and
+price, and the user's `CONFIRM` message is judged by code before the executor writes its attempt row and calls `book`.
+When `book` times out, the executor asks `get_booking_status` and only then does the user see "Booked and verified".
+
+![Sequence of a booking: proposal, approval by code, attempt row, book, timeout, status check, verified result](public/booking-sequence.png)
+
 ## What it looks like
 
 Four screenshots of the web UI (`python -m demo.web`, model `claude-sonnet-5-5`, no random failures). Chat on the left,
