@@ -67,7 +67,7 @@ def test_state_transitions_follow_the_graph_path(build):
     def path(rid):
         return [r["data"]["node"] for r in rows_of(tracer, rid) if r["event"] == "node_exit"]
 
-    assert path(replies[2].run_id) == ["ingest", "approval_gate", "understand", "hold", "respond"]
+    assert path(replies[2].run_id) == ["ingest", "approval_gate", "memory_op", "capture", "understand", "hold", "respond"]
     assert path(replies[3].run_id) == ["ingest", "approval_gate", "execute", "verify", "respond"]
     done = rows_of(tracer, replies[3].run_id)
     assert [r["data"]["node"] for r in done if r["event"] == "node_enter"] == ["approval_gate", "execute", "verify", "respond"]

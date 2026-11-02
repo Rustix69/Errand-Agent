@@ -17,6 +17,8 @@ from errand.contract.port import ToolPort
 from errand.core import (
     AgentStore, ApprovalGuard, Budget, BudgetLimits, IdempotentExecutor, Limits, resolve_pending,
 )
+from errand.agent.context import ContextBuilder
+from errand.memory import SqliteMemoryStore, TurnLog
 from errand.model.base import ModelClient
 
 Emit = Callable[[str, dict[str, Any]], None]
@@ -31,6 +33,9 @@ class Runtime:
     model: ModelClient
     clock: Clock
     user_id: str
+    memory: SqliteMemoryStore
+    turns: TurnLog
+    context: ContextBuilder
     limits: Limits = field(default_factory=Limits)
     budget_limits: BudgetLimits = field(default_factory=BudgetLimits)
     emit: Emit = lambda name, data: None

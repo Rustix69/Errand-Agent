@@ -6,7 +6,7 @@
 - [x] 2. Agent DB, ApprovalGuard and idempotent executor (no LLM) (`errand/contract/`, `errand/core/`, `errand/wiring.py`, `tests/core/`, `tests/test_boundaries.py`)
 - [x] 3. ScriptedModel and LangGraph graph (`errand/model/`, `errand/agent/`, `tests/model/`, `tests/agent/`, `tests/evals/`)
 - [x] 4. Trace logger (`errand/trace/`, `tests/trace/`)
-- [ ] 5. Memory, seeds and context builder
+- [x] 5. Memory, seeds and context builder (`errand/memory/`, `errand/agent/context.py`, `tests/memory/`, `tests/agent/test_context.py`)
 - [ ] 6. Remaining eval scenarios incl. restart and crash injection
 - [ ] 7. Proactive poller
 - [ ] 8. Real AnthropicClient and CLI

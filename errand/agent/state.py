@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import operator
-from typing import Annotated, Any, TypedDict
+from typing import Any, TypedDict
 
 
 class ErrandState(TypedDict, total=False):
@@ -13,7 +12,7 @@ class ErrandState(TypedDict, total=False):
     user_message: str
     decision: dict[str, Any]  # what the guard decided about this message (code, before the model)
     approval_id: str | None
-    messages: Annotated[list[dict[str, Any]], operator.add]  # user/assistant text only
+    notes: list[str]  # short confirmations from `capture` (memories saved from this message), appended by finalize
     request: dict[str, Any]  # facts collected so far: service, area, date_range, time_window, max_price ...
     options: list[dict[str, Any]]  # compact result of the last search
     pending: dict[str, Any] | None  # summary of the proposal awaiting approval

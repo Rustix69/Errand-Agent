@@ -23,11 +23,12 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from errand.agent.finalize import Exit, finalize
-from errand.agent.prompts import build_request
+from errand.agent.context import ContextOverflow
 from errand.agent.state import ErrandState
 from errand.agent.tools import ToolRouter
 from errand.contract.errors import ErrorCode, ToolError
 from errand.core import BudgetExhausted, Reader
+from errand.memory.commands import PROFILE_TAGS, capture, parse
 from errand.model.base import Message
 
 _CANT_HOLD = (ErrorCode.SLOT_UNAVAILABLE, ErrorCode.PROVIDER_NOT_FOUND, ErrorCode.INVALID_ARGUMENT)
@@ -71,7 +72,7 @@ def build_graph(rt: Any) -> StateGraph:
             pending = summarize_proposal(row, state.get("options", []))
         return {
             "run_id": run_id, "decision": asdict(d), "approval_id": d.approval_id, "pending": pending,
-            "messages": [{"role": "user", "content": text}], "proposal_request": None, "outcome": None,
+            "proposal_request": None, "outcome": None, "notes": [],
             "exit": None, "final": None, "waiting": None,
         }
 
@@ -87,7 +88,63 @@ def build_graph(rt: Any) -> StateGraph:
         d = state["decision"]
         if d["kind"] in ("approved", "repeat") and d.get("approval_id"):
             return "execute"
-        return "respond" if state.get("exit") else "understand"
+        return "respond" if state.get("exit") else "memory_op"
+
+    # ------------------------------------------------------------------ memory: handled by CODE, never the model
+    def _mem(m: Any) -> dict[str, Any]:
+        return {"id": m.id, "key": m.key, "value": m.value, "source": m.source}
+
+    def memory_op(state: ErrandState) -> dict[str, Any]:
+        """"what do you remember", "forget my area", "correct my area to X", "confirm m_12" ... A command ends the run
+        here: the model is not called and the exchange is not added to the conversation log."""
+        uid, run_id = state["user_id"], state["run_id"]
+        try:
+            ins = rt.memory.inspect(uid)
+            cmd = parse(state["user_message"], [m.key for m in ins.current + ins.awaiting])
+            if cmd is None:
+                return {}
+            if cmd.kind == "inspect":
+                e = Exit("memory_listed", memory={"current": [_mem(m) for m in ins.current],
+                                                  "awaiting": [_mem(m) for m in ins.awaiting],
+                                                  "forgotten": ins.forgotten_count})
+            else:
+                if cmd.kind == "remember":
+                    r = rt.memory.add(uid, cmd.target, cmd.value, tags=PROFILE_TAGS.get(cmd.target, ()))
+                elif cmd.kind == "correct":
+                    r = rt.memory.correct(uid, cmd.target, cmd.value)
+                elif cmd.kind == "forget":
+                    r = rt.memory.forget(uid, cmd.target)
+                elif cmd.kind == "confirm":
+                    r = rt.memory.confirm(uid, cmd.target)
+                else:
+                    r = rt.memory.reject(uid, cmd.target)
+                kind = f"memory_{r.kind}"
+                e = Exit(kind, memory={"memory": _mem(r.memory) if r.memory else None, "ids": r.ids,
+                                       "target": cmd.target, "candidates": [_mem(m) for m in r.candidates]})
+            rt.emit("memory_op", {"run_id": run_id, "command": cmd.kind, "result": e.kind,
+                                  "ids": (e.memory or {}).get("ids", [])})
+            return {"exit": asdict(e)}
+        except Exception as ex:
+            rt.emit("memory_error", {"run_id": run_id, "type": type(ex).__name__, "node": "memory_op"})
+            return {"exit": asdict(Exit("memory_error", reason=type(ex).__name__))}
+
+    def after_memory_op(state: ErrandState) -> str:
+        return "respond" if state.get("exit") else "capture"
+
+    def capture_node(state: ErrandState) -> dict[str, Any]:
+        """Plain statements ("I'm in Jadavpur", "not before 10") are saved as EXPLICIT memories by code. The message
+        still goes on to the model; the confirmation is appended to the reply by finalize."""
+        notes: list[str] = []
+        for cap in capture(state["user_message"]):
+            try:
+                r = rt.memory.add(state["user_id"], cap.key, cap.value, tags=cap.tags)
+            except Exception as ex:
+                rt.emit("memory_error", {"run_id": state["run_id"], "type": type(ex).__name__, "node": "capture"})
+                continue
+            if r.kind != "unchanged" and r.memory:
+                rt.emit("memory_captured", {"run_id": state["run_id"], "id": r.memory.id, "key": cap.key, "result": r.kind})
+                notes.append(f"Noted: {cap.label} is {cap.value} ({r.memory.id}). Say 'forget my {cap.alias}' to remove it.")
+        return {"notes": notes}
 
     # ------------------------------------------------------------------ understand: the bounded model loop
     def understand(state: ErrandState) -> dict[str, Any]:
@@ -105,8 +162,10 @@ def build_graph(rt: Any) -> StateGraph:
         try:
             while True:
                 budget.charge_model_turn()
-                req = build_request(rt.clock.now().isoformat(timespec="minutes"), request, options,
-                                    state.get("pending"), state.get("messages", []), run_msgs)
+                req = rt.context.build(
+                    run_id=run_id, session_id=state["session_id"], user_id=state["user_id"], turn=budget.model_turns,
+                    now_iso=rt.clock.now().isoformat(timespec="minutes"), request=request, options=options,
+                    pending=state.get("pending"), user_message=state["user_message"], run_msgs=run_msgs)
                 t0 = rt.clock.monotonic()
                 turn = rt.model.complete(req)
                 rt.emit("model_call", {"run_id": run_id, "turn": budget.model_turns, "tools": list(req.tool_names),
@@ -138,6 +197,9 @@ def build_graph(rt: Any) -> StateGraph:
                     run_msgs.append(Message("tool", res.content, tool_call_id=c.id, name=c.name))
         except BudgetExhausted as e:
             return {**limit_exit(e), "request": request, "options": options}
+        except ContextOverflow as e:  # what MUST be sent does not fit the token budget: stop clearly, never truncate
+            rt.emit("limit_reached", {"limit": "context_budget", "tokens": e.tokens, "budget": e.budget})
+            return out(Exit("limit", reason="context_budget"))
         except Exception as e:  # model/backend failure or a bug: never hang, never stay silent
             rt.emit("understand_error", {"type": type(e).__name__})
             kind = "model_error"
@@ -217,13 +279,18 @@ def build_graph(rt: Any) -> StateGraph:
     # ------------------------------------------------------------------ respond: the single exit
     def respond(state: ErrandState) -> dict[str, Any]:
         exit_ = Exit(**(state.get("exit") or {"kind": "unexpected", "reason": "no_exit"}))
+        exit_.notes = list(state.get("notes") or [])
         final = finalize(exit_)
         rt.emit("final", {"run_id": state["run_id"], "status": final.status, "kind": final.kind,
                           "reason": final.reason, "waiting": final.waiting})
         if final.kind in _SUCCESS and exit_.proposal_id:  # arms "the very next reply" repeat window
             rt.guard.mark_result_reported(state["session_id"], exit_.proposal_id)
-        return {"final": asdict(final), "waiting": final.waiting,
-                "messages": [{"role": "assistant", "content": final.message}]}
+        if not final.kind.startswith("memory_"):  # memory commands stay out of the conversation the model sees
+            try:
+                rt.turns.append_exchange(state["session_id"], state["user_id"], state["user_message"], final.message)
+            except Exception as ex:
+                rt.emit("turn_log_error", {"run_id": state["run_id"], "type": type(ex).__name__})
+        return {"final": asdict(final), "waiting": final.waiting}
 
     def after_respond(state: ErrandState) -> str:
         return {"approval": "await_approval", "input": "ask_user"}.get(state.get("waiting") or "", END)
@@ -253,14 +320,17 @@ def build_graph(rt: Any) -> StateGraph:
         node.__name__ = name
         return node
 
-    for name, fn in (("ingest", ingest), ("approval_gate", approval_gate), ("understand", understand), ("hold", hold),
+    for name, fn in (("ingest", ingest), ("approval_gate", approval_gate), ("memory_op", memory_op),
+                     ("capture", capture_node), ("understand", understand), ("hold", hold),
                      ("execute", execute), ("verify", verify), ("respond", respond)):
         g.add_node(name, traced(name, fn))
     for name, fn in (("await_approval", wait_node("approval")), ("ask_user", wait_node("input"))):
         g.add_node(name, fn)
     g.add_edge(START, "ingest")
     g.add_edge("ingest", "approval_gate")
-    g.add_conditional_edges("approval_gate", after_gate, {"execute": "execute", "respond": "respond", "understand": "understand"})
+    g.add_conditional_edges("approval_gate", after_gate, {"execute": "execute", "respond": "respond", "memory_op": "memory_op"})
+    g.add_conditional_edges("memory_op", after_memory_op, {"respond": "respond", "capture": "capture"})
+    g.add_edge("capture", "understand")
     g.add_conditional_edges("understand", after_understand, {"hold": "hold", "respond": "respond"})
     g.add_edge("hold", "respond")
     g.add_edge("execute", "verify")
