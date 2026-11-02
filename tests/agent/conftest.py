@@ -7,7 +7,7 @@ import pytest
 
 from errand.clock import FakeClock
 from errand.model import ScriptedModel
-from tests.agent.helpers import AgentEnv, check_run_invariants
+from tests.agent.helpers import AgentEnv, check_run_invariants, check_tools
 from tests.core.helpers import Env
 from tests.core.invariants import assert_invariants
 
@@ -22,6 +22,16 @@ def make_agent(tmp_path: Path, clock: FakeClock) -> Iterator[Callable[..., Agent
         made.append(a)
         return a
 
+    def retire(a: AgentEnv) -> list:
+        """The process dies: close its connections and stop checking it. Its events are returned so the
+        successor (same files, new connections) carries the whole history into the invariant checks."""
+        check_tools(a)
+        a.close()
+        a.env.close()
+        made.remove(a)
+        return list(a.events)
+
+    _make.retire = retire  # type: ignore[attr-defined]
     yield _make
     for a in made:
         check_run_invariants(a)

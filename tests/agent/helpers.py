@@ -57,11 +57,33 @@ class AgentEnv:
         self.handle.close()
 
 
-def check_run_invariants(a: AgentEnv) -> None:
-    """Every agent test: one `final` per `run_start`; the model always had the exact tool list."""
-    assert len(a.of("final")) == len(a.of("run_start")), (len(a.of("final")), len(a.of("run_start")))
+def check_tools(a: AgentEnv) -> None:
+    """The model always had the exact tool list."""
     for req in a.model.requests:
         assert req.tool_names == EXPECTED_TOOLS == MODEL_TOOL_NAMES, req.tool_names
+
+
+def check_run_invariants(a: AgentEnv) -> None:
+    """Every agent test: one `final` per `run_start`; the exact tool list; and no success message without a
+    verified result (every `confirmed` / `already_done` final is backed by a `verified` outcome AND a CONFIRMED,
+    verified attempt in agent.db that carries the same booking id)."""
+    import json
+
+    assert len(a.of("final")) == len(a.of("run_start")), (len(a.of("final")), len(a.of("run_start")))
+    check_tools(a)
+    confirmed = {}
+    for r in a.env.store.attempts():
+        if r["status"] == "CONFIRMED" and r["verified_at"] and r["result_json"]:
+            confirmed[json.loads(r["result_json"]).get("booking_id")] = r
+    last_verified = None
+    for name, data in a.events:
+        if name == "run_start":
+            last_verified = None
+        elif name == "verified":
+            last_verified = data
+        elif name == "final" and data["kind"] in ("confirmed", "already_done"):
+            assert last_verified and last_verified["kind"] in ("confirmed", "already_done"), "success without verify"
+            assert last_verified["booking_id"] in confirmed, "success final has no CONFIRMED verified attempt"
 
 
 def memory_items(system: str) -> list[dict[str, Any]]:

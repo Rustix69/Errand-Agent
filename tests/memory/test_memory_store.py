@@ -115,3 +115,18 @@ def test_forbidden_values_cover_forgotten_guesses_and_replaced_but_not_current(s
     bad = memory.forbidden_values(USER)
     assert {"4821 (zqf1)", "prefers evening slots after 6 pm (zqu1)", "indiranagar (zqs1)"} <= bad
     assert "hsr layout" not in bad and "10:00" not in bad
+
+
+def test_seeded_electrician_memory_matches_the_booking_history(seeded):
+    """Regression (BUGS #7): a seeded memory must agree with what the marketplace says."""
+    from errand.clock import FakeClock
+    from errand.mocks import DEMO_USER_ID, MockWorld, ScenarioConfig
+    from errand.wiring import tools_for
+
+    memory, _, _, _ = seeded
+    world = MockWorld(":memory:", FakeClock(), ScenarioConfig(mode="forced"))
+    bookings = tools_for(world, DEMO_USER_ID).list_bookings(DEMO_USER_ID).bookings
+    last = max((b for b in bookings if b.service == "electrician" and not b.is_upcoming), key=lambda b: b.slot)
+    values = {m.key: m.value for m in memory.usable(USER)}
+    assert last.provider_id in values["electrician_preferred"]
+    assert values["preferred_technician"] == last.technician

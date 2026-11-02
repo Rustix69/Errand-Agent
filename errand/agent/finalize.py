@@ -7,6 +7,7 @@ is told was done or is asked to approve. An unmapped kind still produces a messa
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -69,6 +70,11 @@ _REASONS = {
     "unknown_approval": "I have no matching approval",
 }
 _LIMITS = {"model_turns": "model-turn", "tool_calls": "tool-call", "wall_clock": "time", "context_budget": "context-size"}
+
+
+# A model reply is not a source of truth. If its text CLAIMS an action happened, code adds the real status.
+_CLAIM = re.compile(r"\b(booked|cancell?ed|rescheduled|confirmed)\b", re.I)
+_UNVERIFIED = " (Nothing was booked, cancelled or changed in this step. Only a verified result counts.)"
 
 
 def _inr(n: Any) -> str:
@@ -149,6 +155,7 @@ def finalize(e: Exit) -> Final:
     kind = e.kind
     status = STATUS_BY_KIND.get(kind)
     waiting: Waiting | None = None
+    claim: str | None = None
     if status is None:
         return Final("TOOL_FAILURE", kind, "Something unexpected happened and I stopped. Nothing was changed "
                      "without your approval.", None, e.proposal_id, "unmapped_kind")
@@ -194,6 +201,8 @@ def finalize(e: Exit) -> Final:
         msg, waiting = e.text or "What details can you share?", "input"
     elif kind == "answer":
         msg = e.text or "Is there anything else you'd like to arrange?"
+        if _CLAIM.search(msg):  # an `answer` never follows a verified outcome: a claim in it is unverified
+            msg, claim = msg + _UNVERIFIED, "unverified_claim"
     elif kind == "slot_unavailable":
         msg, waiting = "That option can't be held any more. Want me to search again?", "input"
     elif kind == "booking_not_found":
@@ -209,4 +218,4 @@ def finalize(e: Exit) -> Final:
     pid = e.proposal["proposal_id"] if (waiting == "approval" and e.proposal) else e.proposal_id
     if e.notes:
         msg = f"{msg} {' '.join(e.notes)}"
-    return Final(status, kind, msg, waiting, pid, e.reason)
+    return Final(status, kind, msg, waiting, pid, claim or e.reason)

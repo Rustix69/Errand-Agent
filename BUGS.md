@@ -44,3 +44,11 @@ Logged when they happened. The three for the deliverable get picked from this li
 - **Why:** the check was `out.is_dir()`, which is false for a directory that doesn't exist yet.
 - **Fix:** `--out` is a directory unless it ends in `.jsonl` (or is an existing directory).
 - **Regression test:** `tests/trace/test_trace_cli.py::test_save_is_a_plain_copy_of_only_that_run`.
+
+## 7. The seeded "preferred electrician" memory contradicted the demo user's booking history (phase 5 seeds, found in phase 6)
+
+- **What broke:** The Step 5 seed saved `electrician_preferred = "Same electrician as last time: el_02"` and `preferred_technician = "Karthik R."`. The marketplace's own history says the most recent electrician is `el_01` (technician Suresh M.), and `tests/mocks/test_cancel_reschedule_list.py` pins that. So a seeded user asking "book the same electrician as last time" would have been handed a memory pointing at the wrong provider, and the model could book the wrong one with the user's approval looking legitimate.
+- **How it was found:** by reading the catalog while planning the "same electrician as last time" eval scenario, before any test failed. No test compared the seeded memories to the world.
+- **Why:** I picked `el_02` from the Phase 1 bug-1 fix (the provider ids re-pointed to serve HSR Layout) instead of deriving the value from `list_bookings`, and invented the technician name.
+- **Fix:** the seed now says `el_01` / `Suresh M.`.
+- **Regression test:** `tests/memory/test_memory_store.py::test_seeded_electrician_memory_matches_the_booking_history` (compares the seeded memory with `list_bookings`) and the "same electrician" eval scenario.

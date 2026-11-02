@@ -22,10 +22,10 @@ _MARK = re.compile(r"ZQ[UFSI]\d+")
 CURRENT = [
     ("home_area", "HSR Layout", ("profile", "area")),
     ("earliest_time", "10:00", ("profile", "time")),
-    ("preferred_technician", "Karthik R.", ("profile", "technician")),
+    ("preferred_technician", "Suresh M.", ("profile", "technician")),  # el_01's technician
     ("plumber_budget", "Up to ₹1,500 for plumbing jobs", ("plumber", "plumbing", "budget")),
     ("plumber_note", "Recurring kitchen tap issue; likes a plumber who brings spare washers", ("plumber", "plumbing")),
-    ("electrician_preferred", "Same electrician as last time: el_02", ("electrician", "electrical", "wiring")),
+    ("electrician_preferred", "Same electrician as last time: el_01", ("electrician", "electrical", "wiring")),
     ("electrician_timing", "Electrician visits are fine only after 10:00", ("electrician", "electrical")),
     ("ac_servicing_provider", "AC servicing is with ac_01, twice a year", ("ac", "ac_servicing", "servicing")),
     ("ac_servicing_day", "Saturdays suit AC servicing", ("ac", "ac_servicing", "servicing", "saturday")),

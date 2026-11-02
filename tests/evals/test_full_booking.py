@@ -27,7 +27,7 @@ def test_find_me_a_plumber_to_confirmed(make_agent, eval_case):
         "Full booking: find me a plumber -> confirmed",
         "ask only for missing details; search; code holds + asks approval; 'yes' approved by code; "
         "executor books once, verified; DONE; 1 booking, attempt CONFIRMED, model not consulted on 'yes'",
-        notes="ScriptedModel, forced-mode world, no failures injected",
+        notes="ScriptedModel, forced-mode world, no failures injected", id="B1",
     )
     a = make_agent([
         ask("Which area, and when?", ["area", "date_range"], {"service": "plumber"}),
