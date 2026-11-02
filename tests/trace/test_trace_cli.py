@@ -25,7 +25,7 @@ def test_show_prints_one_line_per_event_and_correct_totals(build, capsys):
     mcs = [r for r in rows if r["event"] == "model_call"]
     tin, tout = sum(r["data"]["input_tokens"] for r in mcs), sum(r["data"]["output_tokens"] for r in mcs)
     cost = sum(r["cost_usd"] for r in mcs)
-    assert out[-1] == (f"totals: model_calls=2 tokens_in={tin} tokens_out={tout} cost=${cost:.6f} tool_calls=1 "
+    assert out[-1] == (f"totals: model_calls=2 tokens_in={tin} tokens_out={tout} cost=≈${cost:.6f} (estimate) tool_calls=1 "
                        f"wall={rows[-1]['t']:.3f}s")
 
 

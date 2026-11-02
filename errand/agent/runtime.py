@@ -18,7 +18,7 @@ from errand.core import (
     AgentStore, ApprovalGuard, Budget, BudgetLimits, IdempotentExecutor, Limits, resolve_pending,
 )
 from errand.agent.context import ContextBuilder
-from errand.memory import SqliteMemoryStore, TurnLog
+from errand.memory import MemoryStore, TurnLog
 from errand.model.base import ModelClient
 
 Emit = Callable[[str, dict[str, Any]], None]
@@ -33,7 +33,7 @@ class Runtime:
     model: ModelClient
     clock: Clock
     user_id: str
-    memory: SqliteMemoryStore
+    memory: MemoryStore
     turns: TurnLog
     context: ContextBuilder
     limits: Limits = field(default_factory=Limits)

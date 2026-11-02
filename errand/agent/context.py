@@ -26,7 +26,7 @@ from errand.agent.outbox import recent_notices
 from errand.agent.prompts import SYSTEM_RULES, state_block
 from errand.agent.tools import MODEL_TOOLS
 from errand.core.store import AgentStore, iso
-from errand.memory.store import Memory, SqliteMemoryStore, Turn, TurnLog, words_of
+from errand.memory.store import Memory, MemoryStore, Turn, TurnLog, words_of
 from errand.model.base import Message, ModelRequest
 
 DEFAULT_BUDGET = 3000
@@ -47,7 +47,7 @@ class ContextOverflow(Exception):
 
 
 class ContextBuilder:
-    def __init__(self, store: AgentStore, memory: SqliteMemoryStore, turns: TurnLog,
+    def __init__(self, store: AgentStore, memory: MemoryStore, turns: TurnLog,
                  emit: Callable[[str, dict[str, Any]], None] | None = None,
                  budget_tokens: int = DEFAULT_BUDGET) -> None:
         self.store, self.memory, self.turns = store, memory, turns

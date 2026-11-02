@@ -43,6 +43,26 @@ def test_router_refuses_anything_outside_the_list_and_calls_nothing(env, name):
     assert events == [("tool_refused", {"tool": name})] and env.calls() == []
 
 
+@pytest.mark.parametrize("tool,args,action", [
+    ("propose_booking", {"provider_id": "pl_01", "slot": "2026-11-03T10:00"}, "book"),
+    ("propose_cancel", {"booking_id": "bk_000001"}, "cancel"),
+    ("propose_reschedule", {"booking_id": "bk_000001", "slot": "2026-11-04T10:00"}, "reschedule"),
+])
+def test_each_propose_tool_maps_to_the_action_the_guard_understands(env, tool, args, action):
+    """Regression (BUGS #4): the tool name `propose_booking` once produced the action "booking" instead of "book",
+    so no proposal could be created. The router's action must be one of the guard's action words, exactly."""
+    from errand.agent.tools import PROPOSE_TOOLS
+
+    r = ToolRouter(Reader(env.agent_tools, env.clock, Limits(), Budget(env.clock)), "u_demo", lambda n, d: None)
+    res = r.run(ToolCall("c1", tool, args))
+    assert res.kind == "propose" and res.payload["action"] == action
+    # the vocabulary shared with the guard and the proposals table (a CHECK constraint allows exactly these)
+    assert {"book", "cancel", "reschedule"} >= {res.payload["action"]}
+    row = env.store.one("SELECT sql FROM sqlite_master WHERE name = 'proposals'")["sql"]
+    assert f"'{action}'" in row
+    assert set(PROPOSE_TOOLS) == {"propose_booking", "propose_cancel", "propose_reschedule"}
+
+
 # ----------------------------------------------------------------------------- untrusted data
 
 

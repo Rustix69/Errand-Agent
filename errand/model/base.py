@@ -41,6 +41,9 @@ class Message:
 class Usage:
     input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0  # recorded when the API reports them; not priced
+    cache_write_tokens: int = 0
+    source: str = "synthetic"  # "api" = counts reported by the API response; "synthetic" = ScriptedModel
 
 
 @dataclass(frozen=True)
@@ -67,6 +70,7 @@ class ModelTurn:
     tool_calls: tuple[ToolCall, ...] = ()
     usage: Usage = Usage()
     stop_reason: str = "end_turn"
+    request_id: str | None = None  # the API's request id, for debugging real calls
 
 
 class ModelError(Exception):

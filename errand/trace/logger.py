@@ -22,12 +22,12 @@ from pathlib import Path
 from typing import Any
 
 from errand.clock import Clock
+from errand.config import PRICE_TABLE
 from errand.trace.tools import SummarizingTools
 
-# USD per 1M tokens (input, output). Only the offline model has an entry: its token counts are synthetic
-# and its price is a stand-in so offline traces look like real ones. A model missing from the table gets
-# cost_usd = null; real prices are configured when the real client is added.
-PRICES: dict[str, tuple[float, float]] = {"scripted": (3.0, 15.0)}
+# USD per 1M tokens (input, output), from the config. A model missing from the table gets cost_usd = null.
+# Costs are ESTIMATES (price table x reported tokens) and every priced row says so: ``cost_estimated: true``.
+PRICES: dict[str, tuple[float, float]] = PRICE_TABLE
 
 SESSION_TRACE = "_session"
 _REDACT = frozenset({"api_key", "apikey", "authorization", "password", "secret", "token"})
@@ -114,6 +114,8 @@ class TraceLogger:
             row["latency_s"] = round(latency, 3)
         if name == "model_call":
             row["cost_usd"] = self._cost(body)
+            if row["cost_usd"] is not None:
+                row["cost_estimated"] = True
         row["data"] = sanitize(body, self.cap)
 
         line = json.dumps(row, ensure_ascii=False, sort_keys=True)

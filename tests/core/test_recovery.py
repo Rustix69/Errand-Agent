@@ -77,6 +77,27 @@ def test_crash_after_commit_is_recovered_to_confirmed_and_yes_returns_it(make_en
     assert len([b for b in env2.user_bookings() if b["hold_id"] == h.hold_id]) == 1
 
 
+def test_recovery_clears_a_stale_hold_expired_code_when_the_booking_did_happen(make_env):
+    """Regression (BUGS #1): the executor writes error_code='hold_expired' on the still-PENDING attempt while it asks
+    the source of truth. If the process dies after that write and the booking had in fact committed, startup recovery
+    must mark it CONFIRMED AND clear the code (it used to keep the stale code on a successful booking)."""
+    env = make_env()
+    _, pid, aid = env.book_flow()
+    env.world.sim.force("book", "crash_after_commit")
+    with pytest.raises(SimulatedCrash):
+        env.executor.execute(aid)
+    (att,) = env.attempts()
+    env.store.update_attempt(att["idempotency_key"], error_code="hold_expired")  # what the executor leaves if it dies here
+    (att,) = env.attempts()
+    assert att["status"] == "PENDING" and att["error_code"] == "hold_expired"
+
+    env2 = make_env.restart(env)
+    assert [r.result for r in recover(env2)] == ["confirmed"]
+    (att,) = env2.attempts()
+    assert att["status"] == "CONFIRMED" and att["verified_at"] and att["error_code"] is None
+    assert env2.store.proposal(pid)["status"] == "executed" and env2.count("book") == 1
+
+
 def test_crash_after_commit_resolved_by_execute_without_running_recovery_first(make_env):
     env = make_env()
     _, _, aid = env.book_flow()

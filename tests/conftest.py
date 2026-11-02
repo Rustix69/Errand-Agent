@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import socket
 from collections.abc import Callable, Iterator
 from pathlib import Path
 
@@ -52,3 +54,18 @@ def free_slot(tools: MarketplaceTools, service: str = "plumber", area: str = "In
         if len(p.available_slots) > index:
             return p.provider_id, p.available_slots[index], p.price
     raise AssertionError("no free slot in seeded world")
+
+
+@pytest.fixture(autouse=True)
+def offline(monkeypatch):
+    """Every test runs with no API key and no network: a connection attempt is an error, so nothing can silently
+    reach a real model. (SQLite and the in-process mocks do not use sockets.)"""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+
+    def blocked(self, *args, **kwargs):
+        raise RuntimeError("network access is blocked in tests")
+
+    monkeypatch.setattr(socket.socket, "connect", blocked)
+    monkeypatch.setattr(socket.socket, "connect_ex", blocked)
+    yield
+    os.environ.pop("ANTHROPIC_API_KEY", None)  # a test that loaded a temp .env must not leak it

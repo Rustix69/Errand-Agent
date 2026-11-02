@@ -224,3 +224,19 @@ def test_only_the_executor_calls_mutating_tools():
 )
 def test_mutating_scanner_flags_synthetic_offenders(snippet):
     assert mutating_refs(snippet, "fake.py")
+
+
+# ----------------------------------------------------------------------------- the dependency points one way: demo -> errand
+
+
+@pytest.mark.parametrize("snippet", ["import demo", "from demo import chat", "from demo.world import DemoWorld", "import demo.chat as c"])
+def test_demo_import_scanner_flags_synthetic_offenders(snippet):
+    assert [1 for _, m, n in imports(snippet, PKG / "agent" / "fake.py") if touches(m, n, "demo")], snippet
+
+
+def test_nothing_under_errand_imports_the_demo():
+    """`demo/` drives the mock world's simulator hooks, so it sits OUTSIDE `errand/`; the agent never depends on it."""
+    files = sorted(PKG.rglob("*.py"))
+    assert len(files) >= 30
+    problems = [f"{f.name}:{ln}: imports {m}" for f in files for ln, m, n in imports(f.read_text(), f) if touches(m, n, "demo")]
+    assert problems == []

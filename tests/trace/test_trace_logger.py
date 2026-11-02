@@ -206,3 +206,22 @@ def test_a_broken_trace_destination_does_not_stop_the_agent(build):
     assert [r.status for r in replies] == ["NEEDS_INPUT", "DONE", "NEEDS_INPUT", "DONE"]
     assert replies[3].kind == "confirmed" and a.env.count("book") == 1
     assert tracer.write_errors > 0
+
+
+def test_model_call_cost_is_labelled_an_estimate_and_usage_records_what_the_api_reported(build):
+    from errand.model import ModelTurn, Usage
+    from errand.trace.cli import render
+
+    api_turn = ModelTurn(text="ok", usage=Usage(100, 20, cache_read_tokens=60, cache_write_tokens=5, source="api"),
+                         request_id="req_demo")
+    a, tracer = build([api_turn, say("synthetic")])
+    r1 = a.say("hello")
+    r2 = a.say("again")
+    (real,) = [x for x in rows_of(tracer, r1.run_id) if x["event"] == "model_call"]
+    assert real["cost_usd"] == round((100 * 3.0 + 20 * 15.0) / 1e6, 6) and real["cost_estimated"] is True
+    assert real["data"]["usage_source"] == "api" and real["data"]["request_id"] == "req_demo"
+    assert (real["data"]["cache_read_tokens"], real["data"]["cache_write_tokens"]) == (60, 5)  # recorded, not priced
+    (synth,) = [x for x in rows_of(tracer, r2.run_id) if x["event"] == "model_call"]
+    assert synth["data"]["usage_source"] == "synthetic" and "cache_read_tokens" not in synth["data"]
+    text = render(rows_of(tracer, r1.run_id))
+    assert "~$" in text and " est " in text and " api " in text and "(estimate)" in text

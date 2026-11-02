@@ -172,6 +172,10 @@ def build_graph(rt: Any) -> StateGraph:
                                        "model": getattr(rt.model, "name", type(rt.model).__name__),
                                        "latency_s": rt.clock.monotonic() - t0,
                                        "input_tokens": turn.usage.input_tokens, "output_tokens": turn.usage.output_tokens,
+                                       "usage_source": turn.usage.source, "request_id": turn.request_id,
+                                       **({"cache_read_tokens": turn.usage.cache_read_tokens,
+                                           "cache_write_tokens": turn.usage.cache_write_tokens}
+                                          if turn.usage.cache_read_tokens or turn.usage.cache_write_tokens else {}),
                                        "tool_calls": [c.name for c in turn.tool_calls]})
                 if not turn.tool_calls:
                     return out(Exit("answer", text=turn.text))
