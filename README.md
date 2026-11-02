@@ -7,6 +7,38 @@ and recovers safely from tool failures. Everything runs locally: no real provide
 Safety is structural, not prompt-based: the model can only read and *propose*. Deterministic code decides approval and
 is the only thing that can book, cancel or reschedule. [`DESIGN.md`](DESIGN.md) explains how.
 
+## What it looks like
+
+Four screenshots of the web UI (`python -m demo.web`, model `claude-sonnet-5-5`, no random failures). Chat on the left,
+bookings and the live trace on the right, demo failure triggers along the bottom.
+
+**1. Clarify, compare, use saved preferences** (eval E1, M1). "Find me a plumber for my kitchen tap this week, mornings
+only, under 1500" is not answered with a question about the area: the saved area (HSR Layout) and the saved earliest time
+(10:00) are used. The reply compares providers against the budget and the morning window and explains who is left out.
+The trace shows the `search_providers` call, the context sent to the model (`context_built`: token count, memory ids) and
+token usage with an estimated cost.
+
+![A plumber request answered from saved preferences, with the live trace](public/img01.png)
+
+**2. Approval before anything is booked** (evals S1, S2, S8). Picking an option only creates a *proposal*. The card shows
+the exact action, provider, slot and price. Confirm sends the displayed `CONFIRM <code>` as an ordinary chat message, and
+the approval guard decides from that message: the page cannot book anything.
+
+![The approval card for a plumber booking](public/img02.png)
+
+**3. Proactive follow-up** (evals P1 to P5). The simulator cancels the home-cleaning booking (the dashed line). With no
+user message, the poller finds the cancellation, posts a notice, searches for a replacement that fits the saved
+preferences, and asks for a fresh approval. The trace shows `poll_detected`, `poll_proposal` and `poll_decision`. The
+booking list shows the cancelled one as "cancelled by provider", and the confirmed reply above it is the verified result
+of the earlier electrician booking.
+
+![A provider cancellation noticed by the poller, with a replacement awaiting approval](public/img03.png)
+
+**4. Reschedule** (eval E2, with the `slot_conflict` recovery in F6). "Move my AC servicing to Saturday" finds the booking
+through `list_bookings` and proposes the move, showing the current and the new slot. Nothing changes until the user approves.
+
+![A reschedule proposal for the AC servicing](public/img04.png)
+
 ## Quick start
 
 ```bash
